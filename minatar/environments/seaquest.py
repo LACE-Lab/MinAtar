@@ -310,3 +310,101 @@ class Env:
     def minimal_action_set(self):
         minimal_actions = ['n','l','u','r','d','f']
         return [self.action_map.index(x) for x in minimal_actions]
+
+    def save_state(self):
+        state_str  = str(self.oxygen) + " "
+        state_str += str(self.diver_count) + " "
+        state_str += str(self.sub_x) + " "
+        state_str += str(self.sub_y) + " "
+        state_str += str(self.sub_or) + " "
+        state_str += str(len(self.f_bullets)) + " "
+        for fb in self.f_bullets:
+            for prop in fb:
+                state_str += str(prop) + " "
+        state_str += str(len(self.e_bullets)) + " "
+        for eb in self.e_bullets:
+            for prop in eb:
+                state_str += str(prop) + " "
+        state_str += str(len(self.e_fish)) + " "
+        for ef in self.e_fish:
+            for prop in ef:
+                state_str += str(prop) + " "
+        state_str += str(len(self.e_subs)) + " "
+        for es in self.e_subs:
+            for prop in es:
+                state_str += str(prop) + " "
+        state_str += str(len(self.divers)) + " "
+        for d in self.divers:
+            for prop in d:
+                state_str += str(prop) + " "
+        state_str += str(self.e_spawn_speed) + " "
+        state_str += str(self.e_spawn_timer) + " "
+        state_str += str(self.d_spawn_timer) + " "
+        state_str += str(self.move_speed) + " "
+        state_str += str(self.ramp_index) + " "
+        state_str += str(self.shot_timer) + " "
+        state_str += str(self.surface) + " "
+        state_str += str(self.terminal)
+        return state_str
+
+    def load_state(self, state_str):
+        state_lst = state_str.split()
+        state_iter = iter(state_lst)
+
+        self.oxygen = int(next(state_lst))
+        self.diver_count = int(next(state_lst))
+        self.sub_x = int(next(state_lst))
+        self.sub_y = int(next(state_lst))
+        self.sub_or = bool(next(state_lst))
+        self.f_bullets = []
+        numFB = int(next(state_lst))
+        for i in range(numFB):
+            props = []
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(bool(next(state_lst)))
+            self.f_bullets.append(props)
+        self.e_bullets = []
+        numEB = int(next(state_lst))
+        for i in range(numEB):
+            props = []
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(bool(next(state_lst)))
+            self.e_bullets.append(props)
+        self.e_fish = []
+        numFish = int(next(state_lst))
+        for i in range(numFish):
+            props = []
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(bool(next(state_lst)))
+            props.append(int(next(state_lst)))
+            self.e_fish.append(props)
+        self.e_subs = []
+        numSubs = int(next(state_lst))
+        for i in range(numSubs):
+            props = []
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(bool(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            self.e_subs.append(props)
+        self.divers = []
+        numDivers = int(next(state_lst))
+        for i in range(numDivers):
+            props = []
+            props.append(int(next(state_lst)))
+            props.append(int(next(state_lst)))
+            props.append(bool(next(state_lst)))
+            props.append(int(next(state_lst)))
+            self.divers.append(props)
+        self.e_spawn_speed = int(next(state_lst))
+        self.e_spawn_timer = int(next(state_lst))
+        self.d_spawn_timer = int(next(state_lst))
+        self.move_speed = int(next(state_lst))
+        self.ramp_index = int(next(state_lst))
+        self.shot_timer = int(next(state_lst))
+        self.surface = bool(next(state_lst))
+        self.terminal = bool(next(state_lst))

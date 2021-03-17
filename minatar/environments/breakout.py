@@ -129,3 +129,34 @@ class Env:
     def minimal_action_set(self):
         minimal_actions = ['n','l','r']
         return [self.action_map.index(x) for x in minimal_actions]
+
+    def save_state(self):
+        state_str  = str(self.ball_x) + " "
+        state_str += str(self.ball_y) + " "
+        state_str += str(self.ball_dir) + " "
+        state_str += str(self.pos) + " "
+        for r in range(10):
+            for c in range(10):
+                state_str += str(brick_map[r, c]) + " "
+        state_str += str(self.strike) + " "
+        state_str += str(self.last_x) + " "
+        state_str += str(self.last_y) + " "
+        state_str += str(self.terminal)
+        return state_str
+        
+    def load_state(self, state_str):
+        state_lst = state_str.split()
+        state_iter = iter(state_lst)
+        self.ball_x = int(next(state_iter))
+        self.ball_y = int(next(state_iter))
+        self.ball_dir = int(next(state_iter))
+        self.pos = int(next(state_iter))
+        self.brick_map = np.zeros((10,10))        
+        for r in range(10):
+            for c in range(10):
+                brick_map[r, c] = int(next(state_iter))
+        self.strike = bool(next(state_iter))
+        self.last_x = int(next(state_iter))
+        self.last_y = int(next(state_iter))
+        self.terminal = bool(next(state_iter))
+        

@@ -88,3 +88,15 @@ class Environment:
     def close_display(self):
         plt.close()
         self.closed = True
+
+    # Return a string that represents the current state of the environment
+    # (Not including the RNG state)
+    def save_state(self):
+        return self.env.save_state()
+
+    # Take a string once returned by save_state and restore that state
+    # Because RNG state is not restored, behavior will not necessarily be
+    # the same every time the same state is loaded.
+    # This means this function is suitable for planning using rollouts.
+    def load_state(self, state_str):
+        self.env.load_state(state_str)

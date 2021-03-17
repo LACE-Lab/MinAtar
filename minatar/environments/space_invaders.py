@@ -155,3 +155,49 @@ class Env:
     def minimal_action_set(self):
         minimal_actions = ['n','l','r','f']
         return [self.action_map.index(x) for x in minimal_actions]
+
+    def save_state(self):
+        state_str  = str(self.pos) + " "
+        for r in range(10):
+            for c in range(10):
+                state_str += str(self.f_bullet_map[r, c]) + " "
+        for r in range(10):
+            for c in range(10):
+                state_str += str(self.e_bullet_map[r, c]) + " "
+        for r in range(10):
+            for c in range(10):
+                state_str += str(self.alien_map[r, c]) + " "
+        state_str += str(self.alien_dir) + " "
+        state_str += str(self.enemy_move_interval) + " "
+        state_str += str(self.alien_move_timer) + " "
+        state_str += str(self.alien_shot_timer) + " "
+        state_str += str(self.ramp_index) + " "
+        state_str += str(self.shot_timer) + " "
+        state_str += str(self.terminal)
+        return state_str
+
+    def load_state(self, state_str):
+        state_lst = state_str.split()
+        state_iter = iter(state_lst)
+        self.pos = int(next(state_iter))        
+        self.f_bullet_map = np.zeros((10,10))
+        for r in range(10):
+            for c in range(10):
+                self.f_bullet_map[r, c] = int(next(state_iter))
+        self.e_bullet_map = np.zeros((10,10))
+        for r in range(10):
+            for c in range(10):
+                self.e_bullet_map[r, c] = int(next(state_iter))
+        self.alien_map = np.zeros((10,10))
+        for r in range(10):
+            for c in range(10):
+                self.alien_map[r, c] = int(next(state_iter))
+        self.alien_dir = int(next(state_iter))
+        self.enemy_move_interval = int(next(state_iter))
+        self.alien_move_timer = int(next(state_iter))
+        self.alien_shot_timer = int(next(state_iter))
+        self.ramp_index = int(next(state_iter))
+        self.shot_timer = int(next(state_iter))
+        self.terminal = bool(next(state_iter))
+        
+        

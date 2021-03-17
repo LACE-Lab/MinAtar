@@ -143,3 +143,28 @@ class Env:
     def minimal_action_set(self):
         minimal_actions = ['n','u','d']
         return [self.action_map.index(x) for x in minimal_actions]
+
+    def save_state(self):
+        state_str  = str(self.pos) + " "
+        state_str += str(self.move_timer) + " "
+        state_str += str(self.terminate_timer) + " "
+        for c in self.cars:
+            for prop in c:
+                state_str += str(prop) + " "
+        state_str += str(self.terminal)
+        return state_str
+
+    def load_state(self, state_str):
+        state_lst = state_str.split()
+        state_iter = iter(state_lst)
+        self.pos = int(next(state_iter))
+        self.move_timer = int(next(state_iter))
+        self.terminate_timer = int(next(state_iter))
+        self.cars = []
+        for c_idx in range(8):
+            props = []
+            for prop_idx in range(4):
+                props.append(int(next(state_iter)))
+            self.cars.append(props)
+        self.terminal = bool(next(state_iter))
+        

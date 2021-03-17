@@ -154,3 +154,49 @@ class Env:
     def minimal_action_set(self):
         minimal_actions = ['n','l','u','r','d']
         return [self.action_map.index(x) for x in minimal_actions]
+
+    def save_state(self):
+        state_str  = str(self.player_x) + " "
+        state_str += str(self.player_y) + " "
+        for e in self.entities:
+            if e == None:
+                state_str += "None "
+            else:
+                for prop in e:
+                    state_str += str(prop) + " "
+        state_str += str(self.shot_timer) + " "
+        state_str += str(self.spawn_speed) + " "
+        state_str += str(self.spawn_timer) + " "
+        state_str += str(self.move_speed) + " "
+        state_str += str(self.move_timer) + " "
+        state_str += str(self.ramp_timer) + " "
+        state_str += str(self.ramp_index) + " "
+        state_str += str(self.terminal)
+        return state_str
+
+    def load_state(self, state_str):
+        state_lst = state_str.split()
+        state_iter = iter(state_lst)
+        self.player_x = int(next(state_iter))
+        self.player_y = int(next(state_iter))
+        
+        self.entites = [None]*8        
+        for e_idx in range(8):
+            first_prop = next(state_iter)
+            if first_prop != "None":
+                props = [None]*4
+                props[0] = int(first_prop)
+                props[1] = int(next(state_iter))
+                props[2] = bool(next(state_iter))
+                props[3] = bool(next(state_iter))
+                self.entities[e_idx] = props
+
+        self.shot_timer = int(next(state_iter))
+        self.spawn_speed = int(next(state_iter))
+        self.spawn_timer = int(next(state_iter))
+        self.move_speed = int(next(state_iter))
+        self.move_timer = int(next(state_iter))
+        self.ramp_timer = int(next(state_iter))
+        self.ramp_index = int(next(state_iter))
+        self.terminal = bool(next(state_iter))
+        
