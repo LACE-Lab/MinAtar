@@ -163,7 +163,7 @@ class Env:
                 state_str += "None "
             else:
                 for prop in e:
-                    state_str += str(prop) + " "
+                    state_str += str(int(prop)) + " "
         state_str += str(self.shot_timer) + " "
         state_str += str(self.spawn_speed) + " "
         state_str += str(self.spawn_timer) + " "
@@ -171,7 +171,7 @@ class Env:
         state_str += str(self.move_timer) + " "
         state_str += str(self.ramp_timer) + " "
         state_str += str(self.ramp_index) + " "
-        state_str += str(self.terminal)
+        state_str += str(int(self.terminal))
         return state_str
 
     def load_state(self, state_str):
@@ -187,8 +187,8 @@ class Env:
                 props = [None]*4
                 props[0] = int(first_prop)
                 props[1] = int(next(state_iter))
-                props[2] = bool(next(state_iter))
-                props[3] = bool(next(state_iter))
+                props[2] = bool(int(next(state_iter)))
+                props[3] = bool(int(next(state_iter)))
                 self.entities[e_idx] = props
 
         self.shot_timer = int(next(state_iter))
@@ -198,5 +198,5 @@ class Env:
         self.move_timer = int(next(state_iter))
         self.ramp_timer = int(next(state_iter))
         self.ramp_index = int(next(state_iter))
-        self.terminal = bool(next(state_iter))
+        self.terminal = bool(int(next(state_iter)))
         

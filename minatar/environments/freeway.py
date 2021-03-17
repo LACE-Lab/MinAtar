@@ -151,7 +151,7 @@ class Env:
         for c in self.cars:
             for prop in c:
                 state_str += str(prop) + " "
-        state_str += str(self.terminal)
+        state_str += str(int(self.terminal))
         return state_str
 
     def load_state(self, state_str):
@@ -166,5 +166,5 @@ class Env:
             for prop_idx in range(4):
                 props.append(int(next(state_iter)))
             self.cars.append(props)
-        self.terminal = bool(next(state_iter))
+        self.terminal = bool(int(next(state_iter)))
         

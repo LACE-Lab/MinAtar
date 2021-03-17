@@ -173,7 +173,7 @@ class Env:
         state_str += str(self.alien_shot_timer) + " "
         state_str += str(self.ramp_index) + " "
         state_str += str(self.shot_timer) + " "
-        state_str += str(self.terminal)
+        state_str += str(int(self.terminal))
         return state_str
 
     def load_state(self, state_str):
@@ -183,21 +183,21 @@ class Env:
         self.f_bullet_map = np.zeros((10,10))
         for r in range(10):
             for c in range(10):
-                self.f_bullet_map[r, c] = int(next(state_iter))
+                self.f_bullet_map[r, c] = float(next(state_iter))
         self.e_bullet_map = np.zeros((10,10))
         for r in range(10):
             for c in range(10):
-                self.e_bullet_map[r, c] = int(next(state_iter))
+                self.e_bullet_map[r, c] = float(next(state_iter))
         self.alien_map = np.zeros((10,10))
         for r in range(10):
             for c in range(10):
-                self.alien_map[r, c] = int(next(state_iter))
+                self.alien_map[r, c] = float(next(state_iter))
         self.alien_dir = int(next(state_iter))
         self.enemy_move_interval = int(next(state_iter))
         self.alien_move_timer = int(next(state_iter))
         self.alien_shot_timer = int(next(state_iter))
         self.ramp_index = int(next(state_iter))
         self.shot_timer = int(next(state_iter))
-        self.terminal = bool(next(state_iter))
+        self.terminal = bool(int(next(state_iter)))
         
         

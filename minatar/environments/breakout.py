@@ -137,11 +137,11 @@ class Env:
         state_str += str(self.pos) + " "
         for r in range(10):
             for c in range(10):
-                state_str += str(brick_map[r, c]) + " "
-        state_str += str(self.strike) + " "
+                state_str += str(self.brick_map[r, c]) + " "
+        state_str += str(int(self.strike)) + " "
         state_str += str(self.last_x) + " "
         state_str += str(self.last_y) + " "
-        state_str += str(self.terminal)
+        state_str += str(int(self.terminal))
         return state_str
         
     def load_state(self, state_str):
@@ -154,9 +154,9 @@ class Env:
         self.brick_map = np.zeros((10,10))        
         for r in range(10):
             for c in range(10):
-                brick_map[r, c] = int(next(state_iter))
-        self.strike = bool(next(state_iter))
+                self.brick_map[r, c] = float(next(state_iter))
+        self.strike = bool(int(next(state_iter)))
         self.last_x = int(next(state_iter))
         self.last_y = int(next(state_iter))
-        self.terminal = bool(next(state_iter))
+        self.terminal = bool(int(next(state_iter)))
         
