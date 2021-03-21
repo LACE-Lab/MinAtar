@@ -89,6 +89,9 @@ class Environment:
         plt.close()
         self.closed = True
 
+    def continuous_state(self):
+        return self.end.continuous_state()
+        
     # Return a string that represents the current state of the environment
     # (Not including the RNG state)
     def save_state(self):

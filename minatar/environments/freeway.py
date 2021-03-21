@@ -50,12 +50,17 @@ class Env:
             
         a = self.action_map[a]
 
-        if(a=='u' and self.move_timer==0):
-            self.move_timer = player_speed
-            self.pos = max(0, self.pos-1)
-        elif(a=='d' and self.move_timer==0):
-            self.move_timer = player_speed
-            self.pos = min(9, self.pos+1)
+        if self.move_timer == 0:
+            if(a=='u'):
+                self.move_timer = player_speed
+                self.pos = max(0, self.pos-1)
+                self.playerDir = -1
+            elif(a=='d'):
+                self.move_timer = player_speed
+                self.pos = min(9, self.pos+1)
+                self.playerDir = 1
+            else:
+                self.playerDir = 0
 
         # Win condition
         if(self.pos==0):
@@ -134,6 +139,7 @@ class Env:
         self.move_timer = player_speed
         self.terminate_timer = time_limit
         self.terminal = False
+        self.playerDir = 0
 
     # Dimensionality of the game-state (10x10xn)
     def state_shape(self):
@@ -144,6 +150,30 @@ class Env:
         minimal_actions = ['n','u','d']
         return [self.action_map.index(x) for x in minimal_actions]
 
+    def continuous_state(self):
+        objByColor = [[] for i in range(self.channels)]
+        objByColor[self.channels['chicken']].append((4, self.pos + playerDir*(1.0 - self.move_timer/(player_speed + 1))))
+        for car in self.cars:
+            carX = car[0] + car[2]/(car[3] + 1)
+            objByColor[self.channels['car']].append((carX,car[1]))
+            back_x = carX-1 if car[3]>0 else carX+1
+            if(back_x<0):
+                back_x=9
+            elif(back_x>9):
+                back_x=0
+            if(abs(car[3])==1):
+                trail = self.channels['speed1']
+            elif(abs(car[3])==2):
+                trail = self.channels['speed2']
+            elif(abs(car[3])==3):
+                trail = self.channels['speed3']
+            elif(abs(car[3])==4):
+                trail = self.channels['speed4']
+            elif(abs(car[3])==5):
+                trail = self.channels['speed5']
+            objByColor[trail].append((back_x, car[1]))
+            return objByColor
+    
     def save_state(self):
         state_str  = str(self.pos) + " "
         state_str += str(self.move_timer) + " "

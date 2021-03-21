@@ -156,6 +156,29 @@ class Env:
         minimal_actions = ['n','l','r','f']
         return [self.action_map.index(x) for x in minimal_actions]
 
+    def continuous_state(self):
+        objByColor[[] for i in range(len(self.channels))]
+        objByColor[self.channels['cannon']].append((self.pos, 9))
+        offset = 1 - self.alien_move_timer/min(np.count_nonzero(self.alien_map),self.enemy_move_interval)
+        horiz = 1
+        if((np.sum(self.alien_map[:,0])>0 and self.alien_dir<0) or (np.sum(self.alien_map[:,9])>0 and self.alien_dir>0)):
+            horiz = 0
+        for r in range(10):
+            for c in range(10):
+                if self.alien_map[r, c]:
+                    alienX = c + horiz*self.alien_dir*offset
+                    alienY = r + (1 - horiz)*offset
+                    objByColor[self.channels['alien']].append((alienX, alienY))
+                    if self.alien_dir < 0:
+                        objByColor[self.channels['alien_left']].append((alienX, alienY))
+                    else:
+                        objByColor[self.channels['alien_right']].append((alienX, alienY))
+                if self.f_bullet_map[r, c]:
+                    objByColor[self.channels['friendly_bullet']].append((c, r))
+                if self.e_bullet_map[r, c]:
+                    objByColor[self.channels['enemy_bullet']].append((c, r))
+        return objByColor
+    
     def save_state(self):
         state_str  = str(self.pos) + " "
         for r in range(10):

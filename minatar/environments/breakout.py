@@ -130,6 +130,17 @@ class Env:
         minimal_actions = ['n','l','r']
         return [self.action_map.index(x) for x in minimal_actions]
 
+    def continuous_state(self):
+        objByColor = [[] for i in range(self.channels)]
+        objByColor[self.channels['paddle']].append((pos, 9)) # Paddle
+        objByColor[self.channels['ball']].append((self.ball_x, self.ball_y)) # Ball
+        objByColor[self.channels['trail']].append((self.last_x, self.last_y)) # Trail
+        for r in range(10):
+            for c in range(10):
+                if self.brick_map[r, c]:
+                    objByColor[self.channels['brick']].append((c, r)) # Bricks
+        return objByColor;
+    
     def save_state(self):
         state_str  = str(self.ball_x) + " "
         state_str += str(self.ball_y) + " "

@@ -155,6 +155,19 @@ class Env:
         minimal_actions = ['n','l','u','r','d']
         return [self.action_map.index(x) for x in minimal_actions]
 
+    def continuous_state(self):
+        objByColor = [[] for i in range(self.channels)]
+        objByColor[self.channels['player']].append((player_x, player_y)) # Player
+        for x in entities:
+            if x is not None:
+                c = self.channels['gold'] if x[3] else self.channels['enemy']
+                entityX = x[0] + self.move_timer/(self.move_speed + 1)
+                objByColor[c].append((entityX, x[1]))
+                back_x = entityX-1 if x[2] else entityX+1
+                if(back_x>=0 and back_x<=9):
+                    objByColor[self.channels['trail']].append((back_x, x[1]))
+        return objByColor
+    
     def save_state(self):
         state_str  = str(self.player_x) + " "
         state_str += str(self.player_y) + " "
