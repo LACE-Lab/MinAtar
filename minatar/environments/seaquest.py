@@ -312,46 +312,36 @@ class Env:
         return [self.action_map.index(x) for x in minimal_actions]
 
     def continuous_state(self):
-            'sub_front':0,
-            'sub_back':1,
-            'friendly_bullet':2,
-            'trail':3,
-            'enemy_bullet':4,
-            'enemy_fish':5,
-            'enemy_sub':6,
-            'oxygen_guage':7,
-            'diver_guage':8,
-            'diver':9
-        objByColor = [[] for i in range(self.channels)]
-        objByColor[self.channels['sub_front']].append((self.sub_x,self.sub_y))
+        objByColor = [[] for i in range(len(self.channels))]
+        objByColor[self.channels['sub_front']].append((float(self.sub_x),float(self.sub_y)))
         back_x = self.sub_x-1 if self.sub_or else self.sub_x+1
-        objByColor[self.channels['sub_back']].append((back_x, self.sub_y))
+        objByColor[self.channels['sub_back']].append((float(back_x), float(self.sub_y)))
         for i in range(self.oxygen*10//max_oxygen):
-            objByColor[self.channels['oxygen_guage']].append((i, 9))
+            objByColor[self.channels['oxygen_guage']].append((float(i), 9.0))
         for i in range(9-self.diver_count, 9):
-            objByColor[self.channels['diver_guage']].append((i, 9))
+            objByColor[self.channels['diver_guage']].append((float(i), 9.0))
         for bullet in self.f_bullets:
-            objByColor[self.channels['friendly_bullet']].append((bullet[0], bullet[1]))
+            objByColor[self.channels['friendly_bullet']].append((float(bullet[0]), float(bullet[1])))
         for bullet in self.e_bullets:
-            objByColor[self.channels['enemy_bullet']].append((bullet[0], bullet[1]))
+            objByColor[self.channels['enemy_bullet']].append((float(bullet[0]), float(bullet[1])))
         for fish in self.e_fish:
             fishX = fish[0] + (1 if sub[3] else -1)*(1.0 - fish[3]/(self.move_speed + 1))
-            objByColor[self.channels['enemy_fish']].append((fish[0], fish[1]))
+            objByColor[self.channels['enemy_fish']].append((float(fish[0]), float(fish[1])))
             back_x = fish[0]-1 if fish[2] else fish[0]+1
             if(back_x>=0 and back_x<=9):
-                objByColor[self.channels['trail']].append((back_x, fish[1]))
+                objByColor[self.channels['trail']].append((float(back_x), float(fish[1])))
         for sub in self.e_subs:
             subX = sub[0] + (1 if sub[2] else -1)*(1.0 - sub[3]/(self.move_speed + 1))
-            objByColor[self.channels['enemy_sub']].append((sub[0], sub[1]))
+            objByColor[self.channels['enemy_sub']].append((float(sub[0]), float(sub[1])))
             back_x = sub[0]-1 if sub[2] else sub[0]+1
             if(back_x>=0 and back_x<=9):
-                objByColor[self.channels['trail']].append((back_x, sub[1]))
+                objByColor[self.channels['trail']].append((float(back_x), float(sub[1])))
         for diver in self.divers:
             diverX = diver[0] + (1 if diver[2] else -1)*(1.0 - diver[3]/(diver_move_interval + 1))
-            objByColor[self.channels['diver']].append((diverX, diver[1]))
+            objByColor[self.channels['diver']].append((float(diverX), float(diver[1])))
             back_x = diverX-1 if diver[2] else diverX+1
             if(back_x>=0 and back_x<=9):
-                objByColor[self.channels['trail']].append((back_x, diver[1]))
+                objByColor[self.channels['trail']].append((float(back_x), float(diver[1])))
         return objByColor
 
     def save_state(self):

@@ -151,11 +151,11 @@ class Env:
         return [self.action_map.index(x) for x in minimal_actions]
 
     def continuous_state(self):
-        objByColor = [[] for i in range(self.channels)]
-        objByColor[self.channels['chicken']].append((4, self.pos + playerDir*(1.0 - self.move_timer/(player_speed + 1))))
+        objByColor = [[] for i in range(len(self.channels))]
+        objByColor[self.channels['chicken']].append((4.0, float(self.pos + playerDir*(1.0 - self.move_timer/(player_speed + 1)))))
         for car in self.cars:
             carX = car[0] + car[2]/(car[3] + 1)
-            objByColor[self.channels['car']].append((carX,car[1]))
+            objByColor[self.channels['car']].append((float(carX),float(car[1])))
             back_x = carX-1 if car[3]>0 else carX+1
             if(back_x<0):
                 back_x=9
@@ -171,7 +171,7 @@ class Env:
                 trail = self.channels['speed4']
             elif(abs(car[3])==5):
                 trail = self.channels['speed5']
-            objByColor[trail].append((back_x, car[1]))
+            objByColor[trail].append((float(back_x), float(car[1])))
             return objByColor
     
     def save_state(self):
