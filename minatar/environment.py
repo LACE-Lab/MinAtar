@@ -90,7 +90,7 @@ class Environment:
         self.closed = True
 
     def continuous_state(self):
-        return self.end.continuous_state()
+        return self.env.continuous_state()
         
     # Return a string that represents the current state of the environment
     # (Not including the RNG state)

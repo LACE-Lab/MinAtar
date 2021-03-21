@@ -157,8 +157,8 @@ class Env:
 
     def continuous_state(self):
         objByColor = [[] for i in range(len(self.channels))]
-        objByColor[self.channels['player']].append((float(player_x), float(player_y))) # Player
-        for x in entities:
+        objByColor[self.channels['player']].append((float(self.player_x), float(self.player_y))) # Player
+        for x in self.entities:
             if x is not None:
                 c = self.channels['gold'] if x[3] else self.channels['enemy']
                 entityX = x[0] + self.move_timer/(self.move_speed + 1)

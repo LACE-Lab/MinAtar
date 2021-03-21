@@ -132,7 +132,7 @@ class Env:
 
     def continuous_state(self):
         objByColor = [[] for i in range(len(self.channels))]
-        objByColor[self.channels['paddle']].append((float(pos), 9.0)) # Paddle
+        objByColor[self.channels['paddle']].append((float(self.pos), 9.0)) # Paddle
         objByColor[self.channels['ball']].append((float(self.ball_x), float(self.ball_y))) # Ball
         objByColor[self.channels['trail']].append((float(self.last_x), float(self.last_y))) # Trail
         for r in range(10):

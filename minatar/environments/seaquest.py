@@ -325,15 +325,15 @@ class Env:
         for bullet in self.e_bullets:
             objByColor[self.channels['enemy_bullet']].append((float(bullet[0]), float(bullet[1])))
         for fish in self.e_fish:
-            fishX = fish[0] + (1 if sub[3] else -1)*(1.0 - fish[3]/(self.move_speed + 1))
-            objByColor[self.channels['enemy_fish']].append((float(fish[0]), float(fish[1])))
-            back_x = fish[0]-1 if fish[2] else fish[0]+1
+            fishX = fish[0] + (1 if fish[2] else -1)*(1.0 - fish[3]/(self.move_speed + 1))
+            objByColor[self.channels['enemy_fish']].append((float(fishX), float(fish[1])))
+            back_x = fishX-1 if fish[2] else fish[0]+1
             if(back_x>=0 and back_x<=9):
                 objByColor[self.channels['trail']].append((float(back_x), float(fish[1])))
         for sub in self.e_subs:
             subX = sub[0] + (1 if sub[2] else -1)*(1.0 - sub[3]/(self.move_speed + 1))
-            objByColor[self.channels['enemy_sub']].append((float(sub[0]), float(sub[1])))
-            back_x = sub[0]-1 if sub[2] else sub[0]+1
+            objByColor[self.channels['enemy_sub']].append((float(subX), float(sub[1])))
+            back_x = subX-1 if sub[2] else sub[0]+1
             if(back_x>=0 and back_x<=9):
                 objByColor[self.channels['trail']].append((float(back_x), float(sub[1])))
         for diver in self.divers:

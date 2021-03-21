@@ -157,7 +157,7 @@ class Env:
         return [self.action_map.index(x) for x in minimal_actions]
 
     def continuous_state(self):
-        objByColor[[] for i in range(len(self.channels))]
+        objByColor = [[] for i in range(len(self.channels))]
         objByColor[self.channels['cannon']].append((float(self.pos), 9.0))
         offset = 1 - self.alien_move_timer/min(np.count_nonzero(self.alien_map),self.enemy_move_interval)
         horiz = 1
