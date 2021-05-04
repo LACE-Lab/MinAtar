@@ -193,7 +193,7 @@ class Env:
         self.player_x = int(next(state_iter))
         self.player_y = int(next(state_iter))
         
-        self.entites = [None]*8        
+        self.entities = [None]*8        
         for e_idx in range(8):
             first_prop = next(state_iter)
             if first_prop != "None":
