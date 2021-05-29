@@ -161,7 +161,7 @@ class Env:
         for x in self.entities:
             if x is not None:
                 c = self.channels['gold'] if x[3] else self.channels['enemy']
-                entityX = x[0] + (-1 if x[2] else 1)*self.move_timer/(self.move_speed + 1)
+                entityX = x[0] + (-1 if x[2] else 1)*self.move_timer/(self.move_speed)
                 objByColor[c].append((float(entityX), float(x[1])))
                 back_x = entityX-1 if x[2] else entityX+1
                 if(back_x>=0 and back_x<=9):
