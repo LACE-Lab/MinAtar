@@ -30,7 +30,7 @@ import numpy as np
 from tqdm import tqdm
 
 from collections import namedtuple
-# from minatar import Environment
+from environment import Environment
 from velenvironment import Velenvironment
 
 ################################################################################################################
