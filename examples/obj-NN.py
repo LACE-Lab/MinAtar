@@ -65,11 +65,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ################################################################################################################
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
-                 in_channels, num_actions,
-                 env_len=1,
-                 obj_in_len=2,
-                 out_len=1, hidden_dim=128,
-                 variance_type="separate"):
+                 num_actions, num_objects, in_channels,
+                 hidden_dim=128):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -77,61 +74,25 @@ class QNetwork(pl.LightningModule, nn.Module):
         super(QNetwork, self).__init__()
         self.save_hyperparameters()
 
-        self.obj_in_len = obj_in_len
-        self.env_len = env_len
-        self.out_len = out_len
-
-        variance_types = ["separate", "hetero"]
-        if variance_type not in variance_types:
-            raise ValueError("Invalid variance type. Expected one of: %s" % variance_types)
-        self.variance_type = variance_type
-
         self.dropout = nn.Dropout(p=0.1)
 
         # Embedding layers
         self.obj_embed = nn.Sequential(
-            nn.Linear(in_features=in_channels, out_features=int(hidden_dim/2)),
+            nn.Linear(in_features=in_channels, out_features=int(hidden_dim/4)),
+            nn.ReLU(),
+            nn.Linear(int(hidden_dim/4), int(hidden_dim/2)),
             nn.ReLU(),
             nn.Linear(int(hidden_dim/2), hidden_dim),
             nn.ReLU(),
         )
 
-        self.obj_encoder = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim*2),
-            self.dropout,
-            nn.ReLU()
-        )
-
-        # self.env_embed = nn.Sequential(
-        #     nn.Linear(env_len, 64),
-        #     nn.ReLU()
-        # )
-
         # Output heads
 
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim*3, int(hidden_dim / 4)),
-            nn.ReLU(),
-            nn.Linear(int(hidden_dim / 4), in_channels),
+            nn.Linear(hidden_dim, int(hidden_dim / 2)),
             nn.ReLU(),
             self.dropout,
-        )
-
-        # self.linear_rwd = nn.Sequential(
-        #     nn.Linear(9, 32),
-        #     nn.ReLU(),
-        #     self.dropout,
-        #     nn.Linear(32, 2 * out_len)
-        # )
-
-        self.sigmoid_term = nn.Sequential(
-            nn.Linear(in_channels, int(hidden_dim / 4)),
-            nn.ReLU(),
-            self.dropout,
-            nn.Linear(int(hidden_dim / 4), num_actions),
-            nn.Sigmoid()
+            nn.Linear(int(hidden_dim / 2), num_actions),
         )
         
         # Loss + matching calculation
@@ -149,52 +110,12 @@ class QNetwork(pl.LightningModule, nn.Module):
         # bs = emb_objs.shape[1]
 
         # Calculate the object embedding
-        emb_objs = self.obj_embed(s)  # Shape: [BS, N, 64]
+        emb_objs = self.obj_embed(s)
         emb_objs_vector, _ = torch.max(emb_objs, dim=1)
-        in_set_size = emb_objs.shape[1]
 
-        # Calculate the environment embedding
-        # env = a
-        # h_env_vector = self.env_embed(env)
-
-        # if debug:
-        #     print("env")
-        #     print(env)
-        #     print(h_env_vector)
-        # print(h_env.shape)
-
-        # Obtain the set information by taking the maximum
-        h_objs = self.obj_encoder(emb_objs)
-        h_set_vector, _ = torch.max(h_objs, dim=1)  # Shape: [BS, HIDDEN_DIM]
-        # print(h_objs.shape)                                   # Shape: [BS, N, HIDDEN_DIM]
-
-        if debug:
-            print("set")
-            print(h_set_vector)
-
-        if debug:
-            print("objects")
-            print(h_objs)
-
-        # Concat the three matrix
-        h = torch.cat((emb_objs_vector, h_set_vector), dim=1)  # Shape: [BS, M, 3*HIDDEN_DIM]
-        # h_global = torch.cat((h_env_vector, h_set_vector), dim=1)   # Shape: [BS, 2*HIDDEN_DIM]
-
-        dec = self.decoder(h)
-        # pred_rwd = self.linear_rwd(dec)
-        # rwd_val = pred_rwd[:, 0:self.out_len]
-        # rwd_var = pred_rwd[:, self.out_len:2*self.out_len]
-        # rwd_var = rwd_var ** 2 + 1e-6  # Prevent zero covariance causing errors
-
-        pred_term = self.sigmoid_term(dec)
-        
-        # pred_pos = objs + pred_delta
-        # if debug:x
-        #     print("pred")
-        #     print(pred)
-
+        reward = self.decoder(emb_objs_vector)
         # finally project transformer outputs to class labels and bounding boxes
-        return pred_term
+        return reward
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -283,16 +204,20 @@ def get_cont_state(cont_s, max_obj=40):
     :param cont_s: Continuous state.
     :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
     """
+    # print("cont_s: ", cont_s)
     N = len(cont_s)
+    # print("len(cont_s): ", len(cont_s))
     obj_len = len(cont_s[0][0])
+    # print("cont_s[0][0]: ", len(cont_s[0][0]))
 
     # Collect all the states
     cont_state = []
     for i in range(N):
         for obj in cont_s[i]:
             # Append to the list
-            assert len(obj) == 9
+            assert len(obj) == 6
             cont_state.append(torch.tensor(obj, device=device))
+            # print("obj: ", obj)
 
     # Convert into one torch tensor
     cont_state = torch.vstack(cont_state)
@@ -433,14 +358,15 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
 
     # Get channels and number of actions specific to each game
-    in_channels = 9 #change
+    in_channels = 6 #change
     num_actions = env.num_actions()
+    # print("num_actions: ", num_actions)
 
     # Instantiate networks, optimizer, loss and buffer
-    policy_net = QNetwork(in_channels=in_channels, num_actions=num_actions).to(device)
+    policy_net = QNetwork(num_actions=num_actions, num_objects=1, in_channels=in_channels).to(device)
     replay_start_size = 0
     if not target_off:
-        target_net = QNetwork(in_channels=in_channels, num_actions=num_actions).to(device)
+        target_net = QNetwork(num_actions=num_actions, num_objects=1, in_channels=in_channels).to(device)
         target_net.load_state_dict(policy_net.state_dict())
 
     if not replay_off:
@@ -498,8 +424,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Initialize the environment and start state
         env.reset()
-        s = get_state(env.state())
-        s_cont = get_cont_state(env.continuous_state())
+        s_cont = get_cont_state(env.continuous_state())            
     
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
@@ -518,6 +443,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     # Sample a batch
                     sample = r_buffer.sample(BATCH_SIZE)
 
+            # if sample!= None:
+                # print("sample: ", len(sample))
+                # print("s_cont: ", s_cont.size())
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:

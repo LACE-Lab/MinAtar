@@ -44,16 +44,16 @@ class Velenvironment():
 
     def continuous_state(self):
 
-            
         current_state = self.env.continuous_state()
+        # print("current_state: ", current_state)
+        # print(len(current_state))
         
         for i in range(len(current_state)): 
             one_hot = [0 for i in range(len(current_state))]  #encode color
             one_hot[i] = 1 
             one_hot = tuple(one_hot)
+            # print("one_hot: ", one_hot)
             if  current_state[i] != [] and self.past_state[i] != [] : 
-            
-                
                 
                 l1 = np.asarray(current_state[i])
                 l2 = np.asarray(self.past_state[i])
@@ -76,6 +76,8 @@ class Velenvironment():
             for j in range(len(current_state[i])):
                 if len(current_state[i][j]) == 2: 
                     current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
+                    # print("len of current_state[i][j]: ", len(current_state[i][j]))
+                    # print(current_state[i][j])
           
         return current_state
     
