@@ -482,6 +482,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     }, output_file_name + "_data_and_weights")
 
 def main():
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser()
     parser.add_argument("--game", "-g", type=str)
     parser.add_argument("--output", "-o", type=str)
