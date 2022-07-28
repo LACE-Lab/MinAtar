@@ -331,7 +331,7 @@ def train(sample, policy_net, target_net, optimizer):
 #
 #################################################################################################################
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
-
+    torch.set_num_threads(5)
     # Get channels and number of actions specific to each game
     in_channels = 9 #change
     # num_actions = env.num_actions()
@@ -482,7 +482,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     }, output_file_name + "_data_and_weights")
 
 def main():
-    torch.set_num_threads(5)
     parser = argparse.ArgumentParser()
     parser.add_argument("--game", "-g", type=str)
     parser.add_argument("--output", "-o", type=str)
