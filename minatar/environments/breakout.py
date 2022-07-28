@@ -24,7 +24,7 @@ class Env:
             'trail':2,
             'brick':3,
         }
-        self.action_map = ['n','l','u','r','d','f']
+        self.action_map = ['l','r']
         self.random = np.random.RandomState(seed)
         self.reset()
 
