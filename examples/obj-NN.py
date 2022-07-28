@@ -38,12 +38,12 @@ from velenvironment import Velenvironment
 #
 ################################################################################################################
 BATCH_SIZE = 32
-REPLAY_BUFFER_SIZE = 100000
-TARGET_NETWORK_UPDATE_FREQ = 1000
-TRAINING_FREQ = 1
+REPLAY_BUFFER_SIZE = 10000
+TARGET_NETWORK_UPDATE_FREQ = 100
+TRAINING_FREQ = 10
 NUM_FRAMES = 5000000
-FIRST_N_FRAMES = 100000
-REPLAY_START_SIZE = 5000
+FIRST_N_FRAMES = 10000
+REPLAY_START_SIZE = 500
 END_EPSILON = 0.1
 STEP_SIZE = 0.00025
 GRAD_MOMENTUM = 0.95
@@ -66,7 +66,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, num_objects, in_channels,
-                 hidden_dim=128):
+                 hidden_dim=64):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
