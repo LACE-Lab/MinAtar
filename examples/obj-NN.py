@@ -65,7 +65,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ################################################################################################################
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
-                 num_actions, num_objects, in_channels,
+                 num_actions, in_channels,
                  hidden_dim=64):
         """
         Available variance convergence types: ["separate", "hetero"]
@@ -74,22 +74,25 @@ class QNetwork(pl.LightningModule, nn.Module):
         super(QNetwork, self).__init__()
         self.save_hyperparameters()
 
-        self.dropout = nn.Dropout(p=0.1)
+        self.dropout = nn.Dropout(p=0.2)
 
         # Embedding layers
         self.obj_embed = nn.Sequential(
             nn.Linear(in_features=in_channels, out_features=int(hidden_dim/4)),
             nn.ReLU(),
+            self.dropout,
             nn.Linear(int(hidden_dim/4), int(hidden_dim/2)),
             nn.ReLU(),
+            self.dropout,
             nn.Linear(int(hidden_dim/2), hidden_dim),
             nn.ReLU(),
+            self.dropout,
         )
 
         # Output heads
 
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, int(hidden_dim / 2)),
+            nn.Linear(int(hidden_dim), int(hidden_dim / 2)),
             nn.ReLU(),
             self.dropout,
             nn.Linear(int(hidden_dim / 2), num_actions),
@@ -204,33 +207,35 @@ def get_cont_state(cont_s, max_obj=40):
     :param cont_s: Continuous state.
     :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
     """
-    # print("cont_s: ", cont_s)
-    N = len(cont_s)
-    # print("len(cont_s): ", len(cont_s))
-    obj_len = len(cont_s[0][0])
-    # print("cont_s[0][0]: ", len(cont_s[0][0]))
+    # N = len(cont_s)
+    # obj_len = len(cont_s[0][0])
 
-    # Collect all the states
-    cont_state = []
-    for i in range(N):
-        for obj in cont_s[i]:
-            # Append to the list
-            assert len(obj) == 6
-            cont_state.append(torch.tensor(obj, device=device))
-            # print("obj: ", obj)
+    # # Collect all the states
+    # cont_state = []
+    # for i in range(N):
+    #     for obj in cont_s[i]:
+    #         # Append to the list
+    #         assert len(obj) == 6
+    #         cont_state.append(torch.tensor(obj, device=device))
+    #         # print("obj: ", obj)
 
-    # Convert into one torch tensor
-    cont_state = torch.vstack(cont_state)
+    # # Convert into one torch tensor
+    # cont_state = torch.vstack(cont_state)
 
-    # Zero pad to the maximum allowed dimension
-    size_pad = max_obj - cont_state.shape[0]
-    pad = torch.zeros((size_pad, obj_len), device=device)
-    cont_state = torch.cat([cont_state, pad])
+    # # Zero pad to the maximum allowed dimension
+    # size_pad = max_obj - cont_state.shape[0]
+    # pad = torch.zeros((size_pad, obj_len), device=device)
+    # cont_state = torch.cat([cont_state, pad])
 
-    # Unsqueeze for the batch dimension
-    cont_state = cont_state.unsqueeze(0)
+    # # Unsqueeze for the batch dimension
+    # cont_state = cont_state.unsqueeze(0)
+    
+    # return cont_state
 
-    return cont_state
+    cont_s = np.array(cont_s)
+    cont_s_1 = []
+    cont_s_1.append(cont_s)
+    return torch.tensor(cont_s_1, device=device).unsqueeze(0).float()
 
 ################################################################################################################
 # world_dynamics
@@ -358,15 +363,16 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
 
     # Get channels and number of actions specific to each game
-    in_channels = 6 #change
-    num_actions = env.num_actions()
+    in_channels = 9 #change
+    # num_actions = env.num_actions()
+    num_actions = 4
     # print("num_actions: ", num_actions)
 
     # Instantiate networks, optimizer, loss and buffer
-    policy_net = QNetwork(num_actions=num_actions, num_objects=1, in_channels=in_channels).to(device)
+    policy_net = QNetwork(num_actions=num_actions, in_channels=in_channels).to(device)
     replay_start_size = 0
     if not target_off:
-        target_net = QNetwork(num_actions=num_actions, num_objects=1, in_channels=in_channels).to(device)
+        target_net = QNetwork(num_actions=num_actions, in_channels=in_channels).to(device)
         target_net.load_state_dict(policy_net.state_dict())
 
     if not replay_off:
@@ -374,7 +380,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         replay_start_size = REPLAY_START_SIZE
 
     # optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    optimizer = torch.optim.Adam(policy_net.parameters(), lr=step_size)
+    optimizer = torch.optim.Adam(policy_net.parameters(), lr=step_size, weight_decay=1e-5)
 
     # Set initial values
     e_init = 0
@@ -430,6 +436,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         while(not is_terminated) and t < NUM_FRAMES:
             # Generate data
             s_cont_prime, action, reward, is_terminated = world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net)
+            # print(s_cont_prime)
+            # print(s_cont)
 
             sample = None
             if replay_off:

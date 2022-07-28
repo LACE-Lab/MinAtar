@@ -21,7 +21,7 @@ class Env:
         self.channels ={
             'player':0,
         }
-        self.action_map = ['n','l','u','r','d','f']
+        self.action_map = ['l','u','r','d']
         self.random = np.random.RandomState(seed)
         self.reset()
 
