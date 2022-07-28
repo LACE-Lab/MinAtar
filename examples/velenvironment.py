@@ -48,60 +48,60 @@ class Velenvironment():
         # print("current_state: ", current_state)
         # print(len(current_state))
         
-        # for i in range(len(current_state)): 
-        #     # one_hot = [0 for i in range(len(current_state))]  #encode color
-        #     # one_hot[i] = 1 
-        #     # one_hot = tuple(one_hot)
-        #     # print("one_hot: ", one_hot)
-        #     if  current_state[i] != [] and self.past_state[i] != [] : 
+        for i in range(len(current_state)): 
+            one_hot = [0 for i in range(len(current_state))]  #encode color
+            one_hot[i] = 1 
+            one_hot = tuple(one_hot)
+            # print("one_hot: ", one_hot)
+            if  current_state[i] != [] and self.past_state[i] != [] : 
                 
-        #         l1 = np.asarray(current_state[i])
-        #         l2 = np.asarray(self.past_state[i])
+                l1 = np.asarray(current_state[i])
+                l2 = np.asarray(self.past_state[i])
 
-        #         #Match objects from the past and present state 
-        #         dist_matrix = scipy.spatial.distance_matrix(l1,l2)
-        #         assignmentscur, assignmentspast = scipy.optimize.linear_sum_assignment(dist_matrix)
+                #Match objects from the past and present state 
+                dist_matrix = scipy.spatial.distance_matrix(l1,l2)
+                assignmentscur, assignmentspast = scipy.optimize.linear_sum_assignment(dist_matrix)
 
-        #         #calculate and insert velocities for matched objects 
-        #         for j in range(len(assignmentscur)): 
-        #             curindex = assignmentscur[j]
-        #             pastindex = assignmentspast[j]
-        #             x = current_state[i][curindex][0]
-        #             y = current_state[i][curindex][1]
-        #             xvel = x - self.past_state[i][pastindex][0]
-        #             yvel = y - self.past_state[i][pastindex][1]
-        #             current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
+                #calculate and insert velocities for matched objects 
+                for j in range(len(assignmentscur)): 
+                    curindex = assignmentscur[j]
+                    pastindex = assignmentspast[j]
+                    x = current_state[i][curindex][0]
+                    y = current_state[i][curindex][1]
+                    xvel = x - self.past_state[i][pastindex][0]
+                    yvel = y - self.past_state[i][pastindex][1]
+                    current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
 
-        #     #Set velocities of unmatched objects to 0 
-        #     for j in range(len(current_state[i])):
-        #         if len(current_state[i][j]) == 2: 
-        #             current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
+            #Set velocities of unmatched objects to 0 
+            for j in range(len(current_state[i])):
+                if len(current_state[i][j]) == 2: 
+                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
         #             # print("len of current_state[i][j]: ", len(current_state[i][j]))
         #             # print(current_state[i][j])
         
-        x = current_state[0][0][0]
-        y = current_state[0][0][1]
-        if (x == 0):
-            if (y == 0):
-                current_state = [1,0,0,0,0,0,0,0,0]
-            elif (y == 1):
-                current_state = [0,1,0,0,0,0,0,0,0]
-            elif (y == 2):
-                current_state = [0,0,1,0,0,0,0,0,0]
-        elif (x == 1):
-            if (y == 0):
-                current_state = [0,0,0,1,0,0,0,0,0]
-            elif (y == 1):
-                current_state = [0,0,0,0,1,0,0,0,0]
-            elif (y == 2):
-                current_state = [0,0,0,0,0,1,0,0,0]
-        elif (x == 2):
-            if (y == 0):
-                current_state = [0,0,0,0,0,0,1,0,0]
-            elif (y == 1):
-                current_state = [0,0,0,0,0,0,0,1,0]
-            elif (y == 2):
-                current_state = [0,0,0,0,0,0,0,0,1]
+        # x = current_state[0][0][0]
+        # y = current_state[0][0][1]
+        # if (x == 0):
+        #     if (y == 0):
+        #         current_state = [1,0,0,0,0,0,0,0,0]
+        #     elif (y == 1):
+        #         current_state = [0,1,0,0,0,0,0,0,0]
+        #     elif (y == 2):
+        #         current_state = [0,0,1,0,0,0,0,0,0]
+        # elif (x == 1):
+        #     if (y == 0):
+        #         current_state = [0,0,0,1,0,0,0,0,0]
+        #     elif (y == 1):
+        #         current_state = [0,0,0,0,1,0,0,0,0]
+        #     elif (y == 2):
+        #         current_state = [0,0,0,0,0,1,0,0,0]
+        # elif (x == 2):
+        #     if (y == 0):
+        #         current_state = [0,0,0,0,0,0,1,0,0]
+        #     elif (y == 1):
+        #         current_state = [0,0,0,0,0,0,0,1,0]
+        #     elif (y == 2):
+        #         current_state = [0,0,0,0,0,0,0,0,1]
         # (0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)
         
         return current_state

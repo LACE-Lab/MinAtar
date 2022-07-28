@@ -86,7 +86,7 @@ class QNetwork(pl.LightningModule, nn.Module):
             self.dropout,
             nn.Linear(int(hidden_dim/2), hidden_dim),
             nn.ReLU(),
-            self.dropout,
+            self.dropout
         )
 
         # Output heads
@@ -97,13 +97,6 @@ class QNetwork(pl.LightningModule, nn.Module):
             self.dropout,
             nn.Linear(int(hidden_dim / 2), num_actions),
         )
-        
-        # Loss + matching calculation
-        self.rwd_loss_criterion = nn.MSELoss()
-        self.term_loss_criterion = nn.BCELoss()
-
-        self.loss_rwd_weight = 1
-        self.loss_term_weight = 1
 
     def forward(self, s, debug=False):
         """
@@ -123,29 +116,6 @@ class QNetwork(pl.LightningModule, nn.Module):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
-
-    def loss_fn(self, batch):
-        s, a, sprime, sappear, r, t = batch
-
-        pred_result = self.forward(s)
-        # rwd_val = pred_result['rwd_val']
-        # rwd_var = pred_result['rwd_var']
-        # term_val = pred_result['term_val']
-
-        # Separate training
-        if self.variance_type == "separate":
-            loss = self.rwd_loss_criterion(pred_result, r)
-            # loss_var = self.rwd_loss_criterion((rwd_val - r)**2, rwd_var)
-            # loss = loss_val + loss_var
-
-        # Heteroscedastic
-        # if self.variance_type == "hetero":
-        #     loss = torch.mean((pred_result - r)**2 / (2*rwd_var) + 0.5*torch.log(rwd_var))
-
-        # loss_term = self.term_loss_criterion(term_val, t)
-        # loss += loss_term
-            
-        return loss
 
     def training_step(self, train_batch, batch_idx):
         loss = self.loss_fn(train_batch)
@@ -207,35 +177,35 @@ def get_cont_state(cont_s, max_obj=40):
     :param cont_s: Continuous state.
     :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
     """
-    # N = len(cont_s)
-    # obj_len = len(cont_s[0][0])
+    N = len(cont_s)
+    obj_len = len(cont_s[0][0])
 
-    # # Collect all the states
-    # cont_state = []
-    # for i in range(N):
-    #     for obj in cont_s[i]:
-    #         # Append to the list
-    #         assert len(obj) == 6
-    #         cont_state.append(torch.tensor(obj, device=device))
-    #         # print("obj: ", obj)
+    # Collect all the states
+    cont_state = []
+    for i in range(N):
+        for obj in cont_s[i]:
+            # Append to the list
+            assert len(obj) == 6
+            cont_state.append(torch.tensor(obj, device=device))
+            # print("obj: ", obj)
 
-    # # Convert into one torch tensor
-    # cont_state = torch.vstack(cont_state)
+    # Convert into one torch tensor
+    cont_state = torch.vstack(cont_state)
 
-    # # Zero pad to the maximum allowed dimension
-    # size_pad = max_obj - cont_state.shape[0]
-    # pad = torch.zeros((size_pad, obj_len), device=device)
-    # cont_state = torch.cat([cont_state, pad])
+    # Zero pad to the maximum allowed dimension
+    size_pad = max_obj - cont_state.shape[0]
+    pad = torch.zeros((size_pad, obj_len), device=device)
+    cont_state = torch.cat([cont_state, pad])
 
-    # # Unsqueeze for the batch dimension
-    # cont_state = cont_state.unsqueeze(0)
+    # Unsqueeze for the batch dimension
+    cont_state = cont_state.unsqueeze(0)
     
-    # return cont_state
+    return cont_state
 
-    cont_s = np.array(cont_s)
-    cont_s_1 = []
-    cont_s_1.append(cont_s)
-    return torch.tensor(cont_s_1, device=device).unsqueeze(0).float()
+    # cont_s = np.array(cont_s)
+    # cont_s_1 = []
+    # cont_s_1.append(cont_s)
+    # return torch.tensor(cont_s_1, device=device).unsqueeze(0).float()
 
 ################################################################################################################
 # world_dynamics
@@ -363,7 +333,7 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
 
     # Get channels and number of actions specific to each game
-    in_channels = 9 #change
+    in_channels = 6 #change
     # num_actions = env.num_actions()
     num_actions = 4
     # print("num_actions: ", num_actions)
