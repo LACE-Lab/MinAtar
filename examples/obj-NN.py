@@ -178,35 +178,35 @@ def get_cont_state(cont_s, max_obj=40):
     :param cont_s: Continuous state.
     :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
     """
-    N = len(cont_s)
-    obj_len = len(cont_s[0][0])
+    # N = len(cont_s)
+    # obj_len = len(cont_s[0][0])
 
-    # Collect all the states
-    cont_state = []
-    for i in range(N):
-        for obj in cont_s[i]:
-            # Append to the list
-            assert len(obj) == 9
-            cont_state.append(torch.tensor(obj, device=device))
-            # print("obj: ", obj)
+    # # Collect all the states
+    # cont_state = []
+    # for i in range(N):
+    #     for obj in cont_s[i]:
+    #         # Append to the list
+    #         assert len(obj) == 9
+    #         cont_state.append(torch.tensor(obj, device=device))
+    #         # print("obj: ", obj)
 
-    # Convert into one torch tensor
-    cont_state = torch.vstack(cont_state)
+    # # Convert into one torch tensor
+    # cont_state = torch.vstack(cont_state)
 
-    # Zero pad to the maximum allowed dimension
-    size_pad = max_obj - cont_state.shape[0]
-    pad = torch.zeros((size_pad, obj_len), device=device)
-    cont_state = torch.cat([cont_state, pad])
+    # # Zero pad to the maximum allowed dimension
+    # size_pad = max_obj - cont_state.shape[0]
+    # pad = torch.zeros((size_pad, obj_len), device=device)
+    # cont_state = torch.cat([cont_state, pad])
 
-    # Unsqueeze for the batch dimension
-    cont_state = cont_state.unsqueeze(0)
+    # # Unsqueeze for the batch dimension
+    # cont_state = cont_state.unsqueeze(0)
     
-    return cont_state
+    # return cont_state
 
-    # cont_s = np.array(cont_s)
-    # cont_s_1 = []
-    # cont_s_1.append(cont_s)
-    # return torch.tensor(cont_s_1, device=device).unsqueeze(0).float()
+    cont_s = np.array(cont_s)
+    cont_s_1 = []
+    cont_s_1.append(cont_s)
+    return torch.tensor(cont_s_1, device=device).unsqueeze(0).float()
 
 ################################################################################################################
 # world_dynamics
@@ -336,7 +336,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Get channels and number of actions specific to each game
     in_channels = 9 #change
     # num_actions = env.num_actions()
-    num_actions = 6
+    num_actions = 4
     # print("num_actions: ", num_actions)
 
     # Instantiate networks, optimizer, loss and buffer
