@@ -23,6 +23,7 @@ import torch.nn as nn
 import torch.nn.functional as f
 import torch.optim as optim
 import pytorch_lightning as pl
+import os
 import time
 
 import random, argparse, logging, os
@@ -66,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=64):
+                 hidden_dim=256):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -335,7 +336,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Get channels and number of actions specific to each game
     in_channels = 9 #change
     # num_actions = env.num_actions()
-    num_actions = 2
+    num_actions = 6
     # print("num_actions: ", num_actions)
 
     # Instantiate networks, optimizer, loss and buffer
@@ -455,6 +456,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         if e % 1000 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
+            f = open(f"{output_file_name}.txt", "a")
+            f.write("Avg return: " + str(np.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t) + '\n')
+            f.close()
 
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1000 == 0:
