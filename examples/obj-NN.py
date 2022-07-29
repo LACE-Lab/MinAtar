@@ -457,7 +457,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
             f = open(f"{output_file_name}.txt", "a")
-            f.write("Avg return: " + str(np.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t) + '\n')
+            f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
             f.close()
 
         # Save model data and other intermediate data if the corresponding flag is true
