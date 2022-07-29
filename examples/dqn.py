@@ -138,6 +138,7 @@ class replay_buffer:
 #
 ################################################################################################################
 def get_state(s):
+    #TODO: one hot encoding here 
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
 
@@ -160,7 +161,6 @@ def get_state(s):
 #
 ################################################################################################################
 def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
-
     # A uniform random policy is run before the learning starts
     if t < replay_start_size:
         action = torch.tensor([[random.randrange(num_actions)]], device=device)
@@ -264,7 +264,7 @@ def train(sample, policy_net, target_net, optimizer):
 #
 #################################################################################################################
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
-
+    torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     in_channels = env.state_shape()[2]
     num_actions = env.num_actions()
