@@ -26,8 +26,11 @@ import time
 
 import random, numpy, argparse, logging, os
 
+import numpy as np
+
 from collections import namedtuple
-from minatar import Environment
+from environment import Environment
+from velenvironment import Velenvironment
 
 ################################################################################################################
 # Constants
@@ -267,7 +270,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Get channels and number of actions specific to each game
     in_channels = env.state_shape()[2]
-    num_actions = env.num_actions()
+    num_actions = 4
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
@@ -380,6 +383,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
+            f = open(f"{output_file_name}.txt", "a")
+            f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
+            f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1000 == 0:
             torch.save({
