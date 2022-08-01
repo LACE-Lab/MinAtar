@@ -43,6 +43,9 @@ class Env:
         self.target_pos+=self.target_v
         if 0 < self.runway_pos < runway_length: 
             self.runway_pos +=1
+        
+        if self.bullet_pos==1: 
+            self.bullet_pos +=1
             
         a = self.action_map[a]
 
