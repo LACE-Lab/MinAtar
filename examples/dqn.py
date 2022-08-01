@@ -27,7 +27,7 @@ import time
 import random, numpy, argparse, logging, os
 
 from collections import namedtuple
-from minatar import Environment
+from environment import Environment
 
 ################################################################################################################
 # Constants
@@ -47,6 +47,11 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1.0
+IN_CHANNELS= 34560
+
+width=5
+runway_length=4
+shooting_length=2
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -139,19 +144,22 @@ class replay_buffer:
 #
 ################################################################################################################
 def get_state(s):
-    current_state = s.env.continuous_state()
-        # print("current_state: ", current_state)
-        # print(len(current_state))
+    current_state = s
+    # breakpoint()
+    total_pos=(1+width)*(1+runway_length)*(1+width)*2*(shooting_length+1)
+    
         
-    for i in range(len(current_state)): 
-        # state_index=s[0]*(1+runway_length)+s[1]*(1+width)+s[3]*2+s[4]*(1+shooting_length)
+    if s==[0,0,0,0]: 
+        one_hot = [0]*total_pos  #encode color
+        one_hot[0] = 1 
+    else: 
+        state_index=s[0][0][0]*(1+runway_length)+s[0][0][1]*(1+width)+s[1][0][0]*2+s[1][0][1]*(1+shooting_length)+s[2][0]
+        one_hot = [0]*total_pos  #encode color
+        one_hot[int(state_index)] = 1 
 
-        one_hot = [0 for i in range(len(current_state))]  #encode color
-        one_hot[i] = 1 
-        #     one_hot = tuple(one_hot)
-        #     # print("one_hot: ", one_hot)
+    print(len(one_hot))
+    return torch.tensor(one_hot)
 
-    return one_hot
 
 
 ################################################################################################################
@@ -195,14 +203,15 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
-    print(f"runway_index: {env.runway_index}, runway_pos:{env.runway_pos}")
-    print(f" bullet_pos: {env.bullet_pos}")
-    print(f"target_pos: {env.target_pos}, target_v:{env.target_v}")
-    print(f"terminate: {env.terminal}")
-    print('end of round')
+    # print(env.channels)
+    # print(f"runway_index: {env.runway_index}, runway_pos:{env.runway_pos}")
+    # print(f" bullet_pos: {env.bullet_pos}")
+    # print(f"target_pos: {env.target_pos}, target_v:{env.target_v}")
+    # print(f"terminate: {env.terminal}")
+    # print('end of round')
 
     # Obtain s_prime
-    s_prime = get_state(env.state())
+    s_prime = get_state(env.continuous_state())
 
     return s_prime, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)
 
@@ -226,6 +235,7 @@ def train(sample, policy_net, target_net, optimizer):
 
     # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
+
     states = torch.cat(batch_samples.state)
     next_states = torch.cat(batch_samples.next_state)
     actions = torch.cat(batch_samples.action)
@@ -284,7 +294,7 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
-    in_channels = env.state_shape()[2]
+    in_channels = IN_CHANNELS
     num_actions = env.num_actions()
 
     # Instantiate networks, optimizer, loss and buffer

@@ -69,10 +69,10 @@ class Env:
 
     # Process the game-state into the 10x10xn state provided to the agent and return
     def state(self):
-        state = np.zeros((10,10,len(self.channels)),dtype=bool)
-        state[float(self.runway_index),float(self.runway_pos),self.channels['agent']] = 1
-        state[float(self.target_pos), float(self.target_v), self.channels['target']] = 1
-        state[float(self.bullet_pos),self.channels['bullet']] = 1
+        # state = np.zeros((width,runway_length+shooting_length,len(self.channels)),dtype=bool)
+        state=[self.runway_index,self.runway_pos,self.target_pos,self.bullet_pos]
+        # state[, :, self.channels['target']] = 1
+        # state[(self.bullet_pos),:,self.channels['bullet']] = 1
         return state
 
     # Reset to start state for new episode
