@@ -188,7 +188,7 @@ def get_cont_state(cont_s, max_obj=40):
     for i in range(N):
         for obj in cont_s[i]:
             # Append to the list
-            assert len(obj) == 6
+            assert len(obj) == 9
             cont_state.append(torch.tensor(obj, device=device))
             # print("obj: ", obj)
 
@@ -336,7 +336,7 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
-    in_channels = 6 #change
+    in_channels = 9 #change
     num_actions = env.num_actions()
     # print("num_actions: ", num_actions)
 
