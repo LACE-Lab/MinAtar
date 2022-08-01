@@ -46,7 +46,10 @@ class Environment:
 
     # All MinAtar environments have 6 actions
     def num_actions(self):
-        return 6
+        if (self.env_name != "test"):
+            return 6
+        else:
+            return 4
 
     # Name of the MinAtar game associated with this environment
     def game_name(self):

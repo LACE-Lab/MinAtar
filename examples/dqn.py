@@ -143,7 +143,6 @@ class replay_buffer:
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-
 ################################################################################################################
 # world_dynamics
 #
