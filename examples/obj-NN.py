@@ -174,7 +174,7 @@ def get_state(s):
     s = np.array(s)
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(cont_s, max_obj=60):
+def get_cont_state(cont_s, max_obj=40):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
