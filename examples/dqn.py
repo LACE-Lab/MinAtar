@@ -158,7 +158,7 @@ def get_state(s):
         one_hot[int(state_index)] = float(1 )
 
     # print(len(one_hot))
-    return torch.tensor(one_hot)
+    return torch.tensor(one_hot).unsqueeze(0).unsqueeze(0).float()
 
 
 
