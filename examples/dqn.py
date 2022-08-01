@@ -154,8 +154,8 @@ def get_state(s):
         one_hot[0] = 1 
     else: 
         state_index=s[0][0][0]*(1+runway_length)+s[0][0][1]*(1+width)+s[1][0][0]*2+s[1][0][1]*(1+shooting_length)+s[2][0]
-        one_hot = [0]*total_pos  #encode color
-        one_hot[int(state_index)] = 1 
+        one_hot = [float(0)]*total_pos  #encode color
+        one_hot[int(state_index)] = float(1 )
 
     print(len(one_hot))
     return torch.tensor(one_hot)
