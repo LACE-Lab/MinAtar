@@ -157,7 +157,7 @@ def get_state(s):
         one_hot = [float(0)]*total_pos  #encode color
         one_hot[int(state_index)] = float(1 )
 
-    print(len(one_hot))
+    # print(len(one_hot))
     return torch.tensor(one_hot)
 
 
@@ -246,6 +246,7 @@ def train(sample, policy_net, target_net, optimizer):
     # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
     # in state S_t.  Thus we gather along the columns and get the Q-values corresponds to S_t, A_t.
     # Q_s_a is of size (BATCH_SIZE, 1).
+    print(policy_net(states))
     Q_s_a = policy_net(states).gather(1, actions)
 
     # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
