@@ -65,32 +65,33 @@ class QNetwork(nn.Module):
 
         super(QNetwork, self).__init__()
 
-        # One hidden 2D convolution layer:
-        #   in_channels: variable
-        #   out_channels: 16
-        #   kernel_size: 3 of a 3x3 filter matrix
-        #   stride: 1
-        self.conv = nn.Conv2d(in_channels, 16, kernel_size=3, stride=1)
+        self.input = nn.Linear(in_channels, in_channels*2)
 
         # Final fully connected hidden layer:
         #   the number of linear unit depends on the output of the conv
         #   the output consist 128 rectified units
-        def size_linear_unit(size, kernel_size=3, stride=1):
-            return (size - (kernel_size - 1) - 1) // stride + 1
-        num_linear_units = size_linear_unit(10) * size_linear_unit(10) * 16
-        self.fc_hidden = nn.Linear(in_features=num_linear_units, out_features=128)
+        # def size_linear_unit(size, kernel_size=3, stride=1):
+        #     return (size - (kernel_size - 1) - 1) // stride + 1
+        # num_linear_units = size_linear_unit(10) * size_linear_unit(10) * 16
+
+        self.fc_hidden1 = nn.Linear(in_features=in_channels*2, out_features=in_channels*4)
+        self.fc_hidden2 = nn.Linear(in_features=in_channels*4, out_features=in_channels*4)
+        self.fc_hidden3 = nn.Linear(in_features=in_channels*4, out_features=in_channels*2)
+
 
         # Output layer:
-        self.output = nn.Linear(in_features=128, out_features=num_actions)
+        self.output = nn.Linear(in_features=in_channels*2, out_features=num_actions)
 
     # As per implementation instructions according to pytorch, the forward function should be overwritten by all
     # subclasses
     def forward(self, x):
         # Rectified output from the first conv layer
-        x = f.relu(self.conv(x))
+        x = f.relu(self.input(x))
 
         # Rectified output from the final hidden layer
-        x = f.relu(self.fc_hidden(x.view(x.size(0), -1)))
+        x = f.relu(self.fc_hidden1(x))
+        x = f.relu(self.fc_hidden2(x))
+        x = f.relu(self.fc_hidden3(x))
 
         # Returns the output from the fully-connected linear layer
         return self.output(x)
@@ -138,8 +139,19 @@ class replay_buffer:
 #
 ################################################################################################################
 def get_state(s):
-    #TODO: one hot encoding here 
-    return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
+    current_state = s.env.continuous_state()
+        # print("current_state: ", current_state)
+        # print(len(current_state))
+        
+    for i in range(len(current_state)): 
+        # state_index=s[0]*(1+runway_length)+s[1]*(1+width)+s[3]*2+s[4]*(1+shooting_length)
+
+        one_hot = [0 for i in range(len(current_state))]  #encode color
+        one_hot[i] = 1 
+        #     one_hot = tuple(one_hot)
+        #     # print("one_hot: ", one_hot)
+
+    return one_hot
 
 
 ################################################################################################################
@@ -179,9 +191,15 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
             # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
             with torch.no_grad():
                 action = policy_net(s).max(1)[1].view(1, 1)
+                print(action)
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
+    print(f"runway_index: {env.runway_index}, runway_pos:{env.runway_pos}")
+    print(f" bullet_pos: {env.bullet_pos}")
+    print(f"target_pos: {env.target_pos}, target_v:{env.target_v}")
+    print(f"terminate: {env.terminal}")
+    print('end of round')
 
     # Obtain s_prime
     s_prime = get_state(env.state())

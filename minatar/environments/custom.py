@@ -36,12 +36,12 @@ class Env:
             return r, self.terminal
         
         # Update target position
-        if self.target_pos==1: 
+        if self.target_pos==0: 
             self.target_v=1
         elif self.target_pos == width-1: 
             self.target_v=-1
         self.target_pos+=self.target_v
-        if 0 < self.runway_pos < self.runway_len: 
+        if 0 < self.runway_pos < runway_length: 
             self.runway_pos +=1
             
         a = self.action_map[a]
@@ -70,22 +70,18 @@ class Env:
     # Process the game-state into the 10x10xn state provided to the agent and return
     def state(self):
         state = np.zeros((10,10,len(self.channels)),dtype=bool)
-        state[self.ball_y,self.ball_x,self.channels['ball']] = 1
+        state[float(self.runway_index),float(self.runway_pos),self.channels['agent']] = 1
         state[float(self.target_pos), float(self.target_v), self.channels['target']] = 1
-        state[self.last_y,self.last_x,self.channels['trail']] = 1
-        state[:,:,self.channels['brick']] = self.brick_map
+        state[float(self.bullet_pos),self.channels['bullet']] = 1
         return state
 
     # Reset to start state for new episode
     def reset(self):
-        self.ball_y = 3
-        ball_start = self.random.choice(2)
-        self.ball_x, self.ball_dir = [(0,2),(9,3)][ball_start]
-        self.pos = 4
-
-        self.strike = False
-        self.last_x = self.ball_x
-        self.last_y = self.ball_y
+        self.runway_index=0
+        self.runway_pos=0
+        self.bullet_pos=0
+        self.target_pos=0
+        self.target_v=1
         self.terminal = False
 
     # Dimensionality of the game-state (10x10xn)
@@ -97,7 +93,7 @@ class Env:
     def continuous_state(self):
         objByColor = [[] for i in range(len(self.channels))]
         objByColor[self.channels['agent']].append((float(self.runway_index), float(self.runway_pos))) # Paddle
-        objByColor[self.channels['target']].append((float(self.target_pos), float(self.target_v))) # Ball
+        objByColor[self.channels['target']].append((float(self.target_pos), float(self.target_v))) 
         objByColor[self.channels['bullet']].append((float(self.bullet_pos))) # Trail
         return objByColor
     
