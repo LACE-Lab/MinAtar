@@ -147,6 +147,7 @@ def get_state(s):
     current_state = s
     # breakpoint()
     total_pos=(1+width)*(1+runway_length)*(1+width)*2*(shooting_length+1)
+    print(s)
     
         
     if s==[0,0,0,0]: 
@@ -199,7 +200,7 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
             # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
             with torch.no_grad():
                 action = policy_net(s).max(1)[1].view(1, 1)
-                print(action)
+                # print(action)
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
@@ -246,7 +247,7 @@ def train(sample, policy_net, target_net, optimizer):
     # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
     # in state S_t.  Thus we gather along the columns and get the Q-values corresponds to S_t, A_t.
     # Q_s_a is of size (BATCH_SIZE, 1).
-    print(policy_net(states))
+    # print(policy_net(states))
     Q_s_a = policy_net(states).gather(1, actions)
 
     # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
