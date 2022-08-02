@@ -62,8 +62,8 @@ class Env:
             r+=1
 
         if self.bullet_pos == shooting_length:
-            print('terminal true') 
             self.terminal = True
+            print(self.terminal)
         
         return r, self.terminal
 
