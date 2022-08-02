@@ -147,7 +147,7 @@ def get_state(s):
     current_state = s
     # breakpoint()
     total_pos=(1+width)*(1+runway_length)*(1+width)*2*(shooting_length+1)
-    print(s)
+    # print(s)
     
         
     if s==[0,0,0,0]: 

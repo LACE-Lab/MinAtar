@@ -63,7 +63,7 @@ class Env:
 
         if self.bullet_pos == shooting_length:
             self.terminal = True
-            print(self.terminal)
+            # print(self.terminal)
         
         return r, self.terminal
 
@@ -81,7 +81,7 @@ class Env:
 
     # Reset to start state for new episode
     def reset(self):
-        print('resetting')
+        # print('resetting')
         self.runway_index=0
         self.runway_pos=0
         self.bullet_pos=0
