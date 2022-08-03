@@ -65,7 +65,8 @@ width=5
 runway_length=4
 shooting_length=2
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device=torch.device('cpu')
 
 
 ################################################################################################################
