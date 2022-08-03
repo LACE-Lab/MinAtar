@@ -23,11 +23,19 @@ import torch.nn as nn
 import torch.nn.functional as f
 import torch.optim as optim
 import time
+from tqdm import tqdm
 
 import random, numpy, argparse, logging, os
 
 from collections import namedtuple
 from environment import Environment
+import numpy as np 
+import pandas as pd
+from torch.optim import Adam
+import matplotlib.pyplot as plt
+import random
+import math
+from sklearn.model_selection import train_test_split
 
 ################################################################################################################
 # Constants
@@ -48,6 +56,10 @@ MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1.0
 IN_CHANNELS= 1080
+LEARNING_RATE = 0.01
+DATA_SIZE=65000
+BATCH_SIZE=64
+EPOCHS=800
 
 width=5
 runway_length=4
@@ -101,6 +113,158 @@ class QNetwork(nn.Module):
         # Returns the output from the fully-connected linear layer
         return self.output(x)
 
+###########################################################################################################
+# range neural net 
+#input: runway_index, runway_pos, target_pos, bullet_pos  
+#for each range input, outputs (mean,q1,q2,q3,q4) for each +1 reward
+#
+###########################################################################################################
+
+#output (mean,q1,q2,q3,q4)
+rangeNN =   nn.Sequential(
+            nn.Linear(8,32),
+            nn.ReLU(),
+            nn.Linear(32, 64),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(32, 22))
+
+
+##modified quantile 
+def joint_loss(f, y):
+  #inp: the input x range. 
+  # f: predicted value. should be a list of 5 predictions: (mean,q1,q2,q3,q4)
+  # y: True value.
+
+  q_1=0.01
+  q_2=0.3
+  q_3=0.7
+  q_4=0.99
+
+  sum=torch.tensor(0)
+  for i in range(len(f)):
+    x_mean=f[i][0]
+    y_mean=f[i][1]
+    x_q1=f[i][2]
+    y_q1=f[i][3]
+    x_q2=f[i][4]
+    y_q2=f[i][5]
+    x_q3=f[i][6]
+    y_q3=f[i][7]
+    x_q4=f[i][8]
+    y_q4=f[i][9]
+
+    xloss_mean= torch.pow((x_mean-y[i][0]),2)
+    yloss_mean= torch.pow((y_mean-y[i][1]),2)
+
+    x_e1 = y[i][0] - x_q1
+    loss1=torch.max(q_1*x_e1, (q_1 - 1) * x_e1)
+
+    y_e1 = y[i][1] - y_q1
+    loss2=torch.max(q_1*y_e1, (q_1 - 1) * y_e1)
+
+    x_e2 = y[i][0] - x_q2
+    loss3=torch.max(q_2*x_e2, (q_2 - 1) * x_e2)
+
+    y_e2 = y[i][1] - y_q2
+    loss4=torch.max(q_2*y_e2, (q_2 - 1) * y_e2)
+
+    x_e3 = y[i][0] - x_q3
+    loss5=torch.max(q_3*x_e3, (q_3 - 1) * x_e3)
+
+    y_e3 = y[i][1] - y_q3
+    loss6=torch.max(q_3*y_e3, (q_3 - 1) * y_e3)
+
+    x_e4 = y[i][0] - x_q4
+    loss7=torch.max(q_4*x_e4, (q_4 - 1) * x_e4)
+
+    y_e4 = y[i][1] - y_q4
+    loss8=torch.max(q_4*y_e4, (q_4 - 1) * y_e4)
+
+
+    tot_loss=loss1+loss2+loss3+loss4+loss5+loss6+loss7+loss8+xloss_mean+yloss_mean
+    sum=sum.add(tot_loss)
+
+  #returning avg loss in the batch 
+  return torch.div(sum,len(f))
+
+def range_train (sample, rangeNN):
+    batch_samples = transition(*zip(*sample))
+
+    # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
+    # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
+
+    states = torch.cat(batch_samples.state)
+    next_states = torch.cat(batch_samples.next_state)
+    actions = torch.cat(batch_samples.action)
+    rewards = torch.cat(batch_samples.reward)
+    is_terminal = torch.cat(batch_samples.is_terminal)
+    input=[]
+    for state in states:
+        # print(state)
+        input.append([state[0],state[0],state[1],state[1],state[2],state[2],state[3],state[3]])
+    input=torch.tensor(input)
+    target=torch.cat((next_states,rewards),1)
+
+    train=list(zip(input,target))
+    train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
+
+    # Q_s_a = rangeNN(states).gather(1, actions)
+
+    # # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
+    # # Note: each row of the network's output corresponds to the actions of S_{t+1}.  max(1)[0] gives the max action
+    # # values in each row (since this a batch).  The detach() detaches the target net's tensor from computation graph so
+    # # to prevent the computation of its gradient automatically.  Q_s_prime_a_prime is of size (BATCH_SIZE, 1).
+
+    # # Get the indices of next_states that are not terminal
+    # none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+    # # Select the indices of each row
+    # none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+
+    # Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
+    # if len(none_terminal_next_states) != 0:
+    #     Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+
+    # # Compute the target
+    # target = rewards + GAMMA * Q_s_prime_a_prime
+
+    # # Huber loss
+    # loss = f.smooth_l1_loss(target, )
+    # loss = joint_loss(Q_s_a, tar) 
+
+    # # Zero gradients, backprop, update the weights of policy_net
+    
+    # loss.backward()
+    # optimizer.step()
+    # optimizer.zero_grad()
+
+        
+
+    optimizer = Adam(rangeNN.parameters(), lr=LEARNING_RATE)
+    for n, (inp, tar) in enumerate(train_loader):
+        # stop after 10 iterations
+        if n >= 400:
+            break
+        # prediction
+        out = rangeNN(inp)
+        # update the parameters based on the loss
+        loss = joint_loss(out, tar) # compute the total loss
+        loss.backward()               # compute updates for each parameter
+        optimizer.step()              # make the updates for each parameter
+        optimizer.zero_grad()         # a clean up step for PyTorch
+
+
 
 ###########################################################################################################
 # class replay_buffer
@@ -145,9 +309,9 @@ class replay_buffer:
 ################################################################################################################
 def get_state(s):
     current_state = s
+    # print(f"regular get state: {s}")
     # breakpoint()
     total_pos=(1+width)*(1+runway_length)*(1+width)*2*(shooting_length+1)
-    # print(s)
     
         
     if s==[0,0,0,0]: 
@@ -157,9 +321,19 @@ def get_state(s):
         state_index=s[0][0][0]*(1+runway_length)+s[0][0][1]*(1+width)+s[1][0][0]*2+s[1][0][1]*(1+shooting_length)+s[2][0]
         one_hot = [float(0)]*total_pos  #encode color
         one_hot[int(state_index)] = float(1 )
-
-    # print(len(one_hot))
     return torch.tensor(one_hot).unsqueeze(0).float()
+
+def get_state_range(s):
+    # print(f"range get state: {s}")
+    if s==[0,0,0,0]: 
+        # print(f'in get state: {s}')
+        return torch.tensor(s).float()
+    else: 
+        # print(f'in get state: {res}')
+        res=[s[0][0][0],s[0][0][1],s[1][0][0],s[2][0]]
+        # print(torch.tensor(res).unsqueeze(0).float())
+        return torch.tensor(res).unsqueeze(0).float()
+
 
 
 
@@ -213,8 +387,9 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
 
     # Obtain s_prime
     s_prime = get_state(env.continuous_state())
+    s_prime_range = get_state_range(env.continuous_state())
 
-    return s_prime, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)
+    return [(s_prime,action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)),(s_prime_range, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device))]
 
 
 ################################################################################################################
@@ -242,6 +417,7 @@ def train(sample, policy_net, target_net, optimizer):
     actions = torch.cat(batch_samples.action)
     rewards = torch.cat(batch_samples.reward)
     is_terminal = torch.cat(batch_samples.is_terminal)
+
 
     # Obtain a batch of Q(S_t, A_t) and compute the forward pass.
     # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
@@ -308,6 +484,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     if not replay_off:
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
+        range_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
@@ -330,6 +507,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         if not replay_off:
             r_buffer = checkpoint['replay_buffer']
+            range_buffer=checkpoint['range_replay_buffer']
 
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         e_init = checkpoint['episode']
@@ -354,32 +532,41 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     e = e_init
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
-    while t < NUM_FRAMES:
+    for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
 
         # Initialize the environment and start state
         env.reset()
-        s = get_state(env.state())
+        s = get_state(env.continuous_state())
+        sr=get_state_range(env.continuous_state())
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
             # Generate data
-            s_prime, action, reward, is_terminated = world_dynamics(t, replay_start_size, num_actions, s, env, policy_net)
-
+            dynamics=world_dynamics(t, replay_start_size, num_actions, s, env, policy_net)
+            s_prime, action, reward, is_terminated = dynamics[0]
+            sr_prime, actionr, rewardr, is_terminatedr = dynamics[1]
             sample = None
             if replay_off:
                 sample = [transition(s, s_prime, action, reward, is_terminated)]
+                sample_r = [transition(sr, sr_prime, actionr, rewardr, is_terminatedr)]
             else:
                 # Write the current frame to replay buffer
                 r_buffer.add(s, s_prime, action, reward, is_terminated)
+                range_buffer.add(sr, sr_prime, actionr, rewardr, is_terminatedr)
+                # print(sr,sr_prime)
 
                 # Start learning when there's enough data and when we can sample a batch of size BATCH_SIZE
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
                     sample = r_buffer.sample(BATCH_SIZE)
+                if t > REPLAY_START_SIZE and len(range_buffer.buffer) >= BATCH_SIZE:
+                    # Sample a batch
+                    sample_r = range_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
+                range_train (sample_r, rangeNN)
                 if target_off:
                     train(sample, policy_net, policy_net, optimizer)
                 else:
@@ -396,6 +583,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             # Continue the process
             s = s_prime
+            sr=sr_prime
 
         # Increment the episodes
         e += 1
@@ -422,7 +610,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         'avg_return': avg_return,
                         'return_per_run': data_return,
                         'frame_stamp_per_run': frame_stamp,
-                        'replay_buffer': r_buffer if not replay_off else []
+                        'replay_buffer': r_buffer if not replay_off else [],
+                        'range_replay_buffer': range_buffer if not replay_off else []
             }, output_file_name + "_checkpoint")
 
     # Print final logging info
