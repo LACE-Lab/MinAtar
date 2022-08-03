@@ -267,6 +267,8 @@ def range_train (sample, rangeNN):
         loss.backward()               # compute updates for each parameter
         optimizer.step()              # make the updates for each parameter
         optimizer.zero_grad()         # a clean up step for PyTorch
+        if n%100==0: 
+            print(loss)
 
 
 
