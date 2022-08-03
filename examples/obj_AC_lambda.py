@@ -21,8 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as f
 import pytorch_lightning as pl
 import time
+from tqdm import tqdm
 
 import numpy, argparse, logging, os
+import numpy as np
 
 from collections import namedtuple
 from environment import Environment
@@ -136,7 +138,7 @@ transition = namedtuple('transition', 'state, last_state, action, reward, is_ter
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(cont_s, max_obj=60):
+def get_cont_state(cont_s, max_obj=40):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
@@ -313,7 +315,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
     # Start the simulation
     # Train for a number of frames
     t_start = time.time()
-    while t < NUM_FRAMES:
+    for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
 
@@ -362,6 +364,10 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +
                          str((time.time()-t_start)/t) )
+            f = open(f"{output_file_name}.txt", "a")
+            f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
+            f.close()
 
         # Save model data and other intermediate data if specified
         if store_intermediate_result and e % 1000 == 0:
