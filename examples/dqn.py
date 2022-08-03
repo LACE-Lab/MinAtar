@@ -217,10 +217,7 @@ def range_train (sample, rangeNN):
     input=torch.tensor(input)
     next_states=next_states.to(device)
     rewards=rewards.to(device)
-    print(next_states.is_cuda)
-    print(rewards.is_cuda)
     target=torch.cat((next_states,rewards),1)
-    print(target.is_cuda)
 
     train=list(zip(input,target))
     train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
@@ -482,6 +479,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
+    rangeNN=rangeNN.to(device)
     replay_start_size = 0
     if not target_off:
         target_net = QNetwork(in_channels, num_actions).to(device)
