@@ -215,6 +215,10 @@ def range_train (sample, rangeNN):
         # print(state)
         input.append([state[0],state[0],state[1],state[1],state[2],state[2],state[3],state[3]])
     input=torch.tensor(input)
+    next_states=next_states.to(device)
+    rewards=rewards.to(device)
+    print(next_states.is_cuda)
+    print(rewards.is_cuda)
     target=torch.cat((next_states,rewards),1)
     print(target.is_cuda)
 
