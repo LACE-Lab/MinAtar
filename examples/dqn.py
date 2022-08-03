@@ -215,7 +215,8 @@ def range_train (sample, rangeNN):
         # print(state)
         input.append([state[0],state[0],state[1],state[1],state[2],state[2],state[3],state[3]])
     input=torch.tensor(input)
-    target=torch.cat((next_states,rewards),1, device=device)
+    target=torch.cat((next_states,rewards),1)
+    target.to(device)
 
     train=list(zip(input,target))
     train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
