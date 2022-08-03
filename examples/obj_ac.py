@@ -26,7 +26,8 @@ from IPython.display import clear_output
 import matplotlib.pyplot as plt
 from matplotlib import animation
 from IPython.display import display
-from reacher import Reacher
+from environment import Environment
+from velenvironment import Velenvironment
 
 
 # use_cuda = torch.cuda.is_available()
@@ -120,11 +121,14 @@ class ActorNetwork(nn.Module):
    
     def forward(self, state):
         x = F.relu(self.linear1(state))
+        print(x)
         x = F.relu(self.linear2(x))
+        print(x)
         if DISCRETE and DETERMINISTIC:
             x = torch.max(self.linear3(x), dim=-1)
             return x
         elif DISCRETE and not DETERMINISTIC:
+            print(x)
             x = F.softmax(self.linear3(x), dim=-1)
             return x
         elif not DISCRETE and not DETERMINISTIC:
@@ -137,7 +141,6 @@ class ActorNetwork(nn.Module):
             return mean, log_std
         else:
             x = self.linear3(x)
-            print(x)
             return x
 
     def select_action(self, state):
@@ -169,14 +172,15 @@ class ActorNetwork(nn.Module):
         '''
         evaluate action within GPU graph, for gradients flowing through it
         '''
+        # print(state)
         state = torch.FloatTensor(state).unsqueeze(0).to(device) # state dim: (N, dim of state)
-        print(state)
         if DETERMINISTIC:
             action = self.forward(state)
             return action.detach().cpu().numpy()
 
         elif DISCRETE and not DETERMINISTIC:  # actor-critic (discrete)
             probs = self.forward(state)
+            print("probs: ", probs)
             m = Categorical(probs)
             action = m.sample().to(device)
             log_prob = m.log_prob(action)
@@ -343,45 +347,16 @@ def plot(frame_idx, rewards):
 
 
 ON_POLICY=True
-hidden_dim = 30   
 UPDATE=['Approach0', 'Approach1'][0]
 # choose env
-ENV = ['Pendulum-v0', 'CartPole-v0', 'Reacher', "Acrobot-v1"][1]  # Pendulum is continuous, CartPole is discrete
-if ENV == 'Reacher':
-    DISCRETE = False
-    hidden_dim = 512
-    NUM_JOINTS=2
-    LINK_LENGTH=[200, 140]
-    INI_JOING_ANGLES=[0.1, 0.1]
-    # NUM_JOINTS=4
-    # LINK_LENGTH=[200, 140, 80, 50]
-    # INI_JOING_ANGLES=[0.1, 0.1, 0.1, 0.1]
-    SCREEN_SIZE=1000
-    SPARSE_REWARD=False
-    SCREEN_SHOT=False
-    action_range = 10.0
+ENV = "test"
+env = Velenvironment(ENV)
+hidden_dim = 64
+length = len(env.continuous_state()[0][0])
+state_dim = length #change
+action_dim = env.num_actions()
 
-    env=Reacher(screen_size=SCREEN_SIZE, num_joints=NUM_JOINTS, link_lengths = LINK_LENGTH, \
-    ini_joint_angles=INI_JOING_ANGLES, target_pos = [369,430], render=True, change_goal=False)
-    action_dim = env.num_actions
-    state_dim  = env.num_observations
-else: # gym env
-    if ENV == 'CartPole-v0':
-        DISCRETE = True
-        hidden_dim = 30
-    elif ENV == 'Pendulum-v0':
-        DISCRETE = False
-        hidden_dim = 128
-    if DISCRETE:
-        env = gym.make(ENV)  # discrete env no normalizedactions
-        action_dim = env.action_space.n
-    else:
-        env = NormalizedActions(gym.make(ENV))
-        action_dim = env.action_space.shape[0]
-    state_dim  = env.observation_space.shape[0]
-    action_range=1.
 
-print(state_dim, action_dim)
 actor_net = ActorNetwork(state_dim, action_dim, hidden_dim).to(device)
 critic_net = CriticNetwork(state_dim, hidden_dim).to(device)
 print('Actor Network: ', actor_net)
@@ -389,15 +364,21 @@ print('Critic Network: ', critic_net)
 actor_optimizer = optim.Adam(actor_net.parameters(), lr=1e-3)
 critic_optimizer = optim.Adam(critic_net.parameters(), lr=1e-2)
 
+def get_cont_state(cont_s, max_obj=40):
+    """
+    Return the continuous state of the environment as a torch array.
+    :param cont_s: Continuous state.
+    :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
+    """
+    cont_s = torch.tensor(cont_s, device=device).float()
+    cont_s = cont_s[0][0]
+    return cont_s
+
+
 def train():
     # hyper-parameters
     max_episodes  = 3000
-    if ENV ==  'Reacher':
-        max_steps   = 20
-    elif ENV == 'Pendulum-v0': 
-        max_steps   = 150  # Pendulum needs 150 steps per episode to learn well, cannot handle 20
-    elif ENV == 'CartPole-v0':
-        max_steps   = 1000 # short time step would be too easy for CartPole
+    max_steps = 1000
 
     frame_idx   = 0
     running_reward = 10
@@ -408,11 +389,8 @@ def train():
 
     for i_episode in range (max_episodes):
         
-        if ENV == 'Reacher':
-            state = env.reset(SCREEN_SHOT)
-        # elif ENV == 'Pendulum':
-        else: # gym env
-            state =  env.reset()
+        env.reset()
+        state =  get_cont_state(env.continuous_state())
         episode_reward = 0
         if ON_POLICY:
             rewards=[]
@@ -420,21 +398,16 @@ def train():
             entropies=0
         for step in range (max_steps):
             frame_idx+=1
-            if ON_POLICY:            
+            if ON_POLICY:
+                # print("state: ", state)
                 action, log_prob, entropy = actor_net.evaluate_action(state)
                 # print('state: ', state, 'action: ', action, 'log_prob: ', log_prob)
-                print("action: ", action)
                 state_value = critic_net(state)
-
-                if ENV ==  'Reacher':
-                    next_state, reward, done, _ = env.step(action, SPARSE_REWARD, SCREEN_SHOT)
-                # elif ENV ==  'Pendulum':
-                else: # gym env
-                    if DISCRETE:
-                        next_state, reward, done, _ = env.step(action[0]) # discrete action only needs a index
-                    else:
-                        next_state, reward, done, _ = env.step(action)
-                    env.render()   
+                if DISCRETE:
+                    reward, done= env.act(action[0]) # discrete action only needs a index
+                else:
+                    reward, done= env.act(action)
+                next_state = get_cont_state(env.continuous_state())
                 next_state_value = critic_net(next_state)
                 actor_net.saved_entropies.append(entropy)
                 if UPDATE == 'Approach0':
@@ -449,13 +422,11 @@ def train():
                     critic_net.saved_nextvalues.append(next_state_value)
                     # SavedSet.append(SavedTuple2(log_prob, state_value, next_state_value))
                 if done:
-                    reward = -20 if ENV == 'CartPole-v0' else reward
                     break
                 rewards.append(reward)
             else: # off-policy update with memory buffer
                 pass
                 if done:
-                    reward = -20 if ENV == 'CartPole-v0' else reward
                     break
 
             state = next_state
