@@ -139,6 +139,7 @@ rangeNN =   nn.Sequential(
             nn.ReLU(),
             nn.Dropout(p=0.2),
             nn.Linear(32, 22))
+rangeNN=rangeNN.to(device)
 
 
 ##modified quantile 
@@ -479,7 +480,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
-    rangeNN=rangeNN.to(device)
     replay_start_size = 0
     if not target_off:
         target_net = QNetwork(in_channels, num_actions).to(device)
