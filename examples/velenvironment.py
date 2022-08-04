@@ -64,20 +64,33 @@ class Velenvironment():
 
                 #calculate and insert velocities for matched objects 
                 for j in range(len(assignmentscur)): 
+                    one_hot_x = [0 for i in range(10)]
+                    one_hot_y = [0 for i in range(10)]
+                    one_hot_xvel = [0 for i in range(10)]
+                    one_hot_yvel = [0 for i in range(10)]
                     curindex = assignmentscur[j]
                     pastindex = assignmentspast[j]
                     x = current_state[i][curindex][0]
+                    one_hot_x[int(x)] = 1
                     y = current_state[i][curindex][1]
+                    one_hot_y[int(y)] = 1
                     xvel = x - self.past_state[i][pastindex][0]
+                    one_hot_xvel[int(xvel)+5] = 1
                     yvel = y - self.past_state[i][pastindex][1]
-                    current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
+                    one_hot_yvel[int(yvel)+5] = 1
+                    # current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
+                    current_state[i][curindex] = tuple(one_hot_x) + tuple(one_hot_y) + tuple(one_hot_xvel) + tuple(one_hot_yvel) + one_hot + (1,)
+                    # print(current_state[i][curindex])
 
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
                 if len(current_state[i][j]) == 2: 
-                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
-                    # print("len of current_state[i][j]: ", len(current_state[i][j]))
-                    # print(current_state[i][j])
+                    one_hot_x = [0 for i in range(10)]
+                    one_hot_y = [0 for i in range(10)]
+                    one_hot_x[int(current_state[i][j][0])] = 1
+                    one_hot_y[int(current_state[i][j][1])] = 1
+                    current_state[i][j] = tuple(one_hot_x) + tuple(one_hot_y) + (0,0) + one_hot + (0,)
+                    # current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
         
         # x = current_state[0][0][0]
         # y = current_state[0][0][1]
