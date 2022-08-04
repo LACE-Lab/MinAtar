@@ -47,8 +47,8 @@ MIN_DENOM = 0.0001
 dSiLU = lambda x: torch.sigmoid(x)*(1+x*(1-torch.sigmoid(x)))
 SiLU = lambda x: x*torch.sigmoid(x)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 #####################################################################################################################
 # ACNetwork
