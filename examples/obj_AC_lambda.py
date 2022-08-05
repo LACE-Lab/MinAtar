@@ -151,11 +151,7 @@ def get_cont_state(cont_s, max_obj=40):
     cont_state = []
     for i in range(N):
         for obj in cont_s[i]:
-            # Append to the list
-            # assert len(obj) == 12
-            # 9 FOR BREAKOUT AND ASTERIX, 12 FOR FREEWAY, 6 FOR TEST GAME
             cont_state.append(torch.tensor(obj, device=device))
-            # print("obj: ", obj)
 
     # Convert into one torch tensor
     cont_state = torch.vstack(cont_state)
