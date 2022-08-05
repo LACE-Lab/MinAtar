@@ -60,6 +60,9 @@ LEARNING_RATE = 0.01
 DATA_SIZE=65000
 BATCH_SIZE=64
 EPOCHS=800
+PARAM=4+1
+MULT_ROLLOUT=True
+ROLLOUT=2
 
 width=5
 runway_length=4
@@ -156,46 +159,25 @@ def joint_loss(f, y):
 
   sum=torch.tensor(0)
   for i in range(len(f)):
-    x_mean=f[i][0]
-    y_mean=f[i][1]
-    x_q1=f[i][2]
-    y_q1=f[i][3]
-    x_q2=f[i][4]
-    y_q2=f[i][5]
-    x_q3=f[i][6]
-    y_q3=f[i][7]
-    x_q4=f[i][8]
-    y_q4=f[i][9]
+    tot_loss=torch.tensor(float(0))
+    mean_list=f[i][:PARAM]
+    q1_list=f[i][PARAM:PARAM*2]
+    q2_list=f[i][PARAM*2:PARAM*3]
+    q3_list=f[i][PARAM*3:PARAM*4]
+    q4_list=f[i][PARAM*3:PARAM*5]
 
-    xloss_mean= torch.pow((x_mean-y[i][0]),2)
-    yloss_mean= torch.pow((y_mean-y[i][1]),2)
+    for j in range(PARAM): 
+        # breakpoint()
+        tot_loss+= torch.pow((mean_list[j].float()-y[i][j].float()),2)
+        e1=y[i][j] - q1_list[j]  
+        tot_loss+=torch.max(q_1*e1, (q_1 - 1) * e1)
+        e2 = y[i][j] - q2_list[j] 
+        tot_loss+=torch.max(q_2*e2, (q_2 - 1) * e2)
+        e3=y[i][j] - q3_list[j]
+        tot_loss+=torch.max(q_3*e3, (q_3 - 1) * e3)
+        e4=y[i][j] - q4_list[j]
+        tot_loss+=torch.max(q_4*e4, (q_4 - 1) * e4)
 
-    x_e1 = y[i][0] - x_q1
-    loss1=torch.max(q_1*x_e1, (q_1 - 1) * x_e1)
-
-    y_e1 = y[i][1] - y_q1
-    loss2=torch.max(q_1*y_e1, (q_1 - 1) * y_e1)
-
-    x_e2 = y[i][0] - x_q2
-    loss3=torch.max(q_2*x_e2, (q_2 - 1) * x_e2)
-
-    y_e2 = y[i][1] - y_q2
-    loss4=torch.max(q_2*y_e2, (q_2 - 1) * y_e2)
-
-    x_e3 = y[i][0] - x_q3
-    loss5=torch.max(q_3*x_e3, (q_3 - 1) * x_e3)
-
-    y_e3 = y[i][1] - y_q3
-    loss6=torch.max(q_3*y_e3, (q_3 - 1) * y_e3)
-
-    x_e4 = y[i][0] - x_q4
-    loss7=torch.max(q_4*x_e4, (q_4 - 1) * x_e4)
-
-    y_e4 = y[i][1] - y_q4
-    loss8=torch.max(q_4*y_e4, (q_4 - 1) * y_e4)
-
-
-    tot_loss=loss1+loss2+loss3+loss4+loss5+loss6+loss7+loss8+xloss_mean+yloss_mean
     sum=sum.add(tot_loss)
 
   #returning avg loss in the batch 
@@ -203,15 +185,18 @@ def joint_loss(f, y):
 
 def range_train (sample, rangeNN):
     batch_samples = transition(*zip(*sample))
-
+    # print(f"sample:{sample}")
     # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
 
     states = torch.cat(batch_samples.state)
+    # print(f"states:{states}")
     next_states = torch.cat(batch_samples.next_state)
+    # print(f"next states:{next_states}")
+    # print(next_states)
     actions = torch.cat(batch_samples.action)
     rewards = torch.cat(batch_samples.reward)
-    is_terminal = torch.cat(batch_samples.is_terminal)
+ 
     input=[]
     for state in states:
         # print(state)
@@ -220,38 +205,10 @@ def range_train (sample, rangeNN):
     next_states=next_states.to(device)
     rewards=rewards.to(device)
     target=torch.cat((next_states,rewards),1)
+    # print(f"target:{target}")
 
-    train=list(zip(input,target))
+    train=list(zip(input,target.float()))
     train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
-
-    # Q_s_a = rangeNN(states).gather(1, actions)
-
-    # # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
-    # # Note: each row of the network's output corresponds to the actions of S_{t+1}.  max(1)[0] gives the max action
-    # # values in each row (since this a batch).  The detach() detaches the target net's tensor from computation graph so
-    # # to prevent the computation of its gradient automatically.  Q_s_prime_a_prime is of size (BATCH_SIZE, 1).
-
-    # # Get the indices of next_states that are not terminal
-    # none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
-    # # Select the indices of each row
-    # none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
-
-    # Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
-    # if len(none_terminal_next_states) != 0:
-    #     Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
-
-    # # Compute the target
-    # target = rewards + GAMMA * Q_s_prime_a_prime
-
-    # # Huber loss
-    # loss = f.smooth_l1_loss(target, )
-    # loss = joint_loss(Q_s_a, tar) 
-
-    # # Zero gradients, backprop, update the weights of policy_net
-    
-    # loss.backward()
-    # optimizer.step()
-    # optimizer.zero_grad()
 
         
 
@@ -263,14 +220,70 @@ def range_train (sample, rangeNN):
         # prediction
         out = rangeNN(inp)
         # update the parameters based on the loss
-        loss = joint_loss(out, tar) # compute the total loss
+        loss = joint_loss(out, tar.float()) # compute the total loss
         loss.backward()               # compute updates for each parameter
         optimizer.step()              # make the updates for each parameter
         optimizer.zero_grad()         # a clean up step for PyTorch
         if n%100==0: 
             print(loss)
 
+   
 
+if False:
+    previous_xtrain=input
+    EPOCHS=800
+
+    for i in range(2,ROLLOUT): 
+        batch_samples = transition(*zip(*rollout[i]))
+        states = torch.cat(batch_samples.state)
+        next_states = torch.cat(batch_samples.next_state)
+
+        next_states=next_states.to(device)
+        rewards=rewards.to(device)
+        target=torch.cat((next_states,rewards),1)
+        #making a list of states 
+
+        # index=1
+        # for i in range(DATA_SIZE):
+        #         x_i=previous_states[i][0]+np.random.uniform(-0.05,0.05)
+        #         y_i=previous_states[i][1]+np.random.uniform(-0.5,0.5)
+        #         x_state.append(float(x_i))
+        #         y_state.append(float(y_i))
+            
+        # cur_states=list(zip(x_state,y_state))
+
+        cur_xtrain=[]
+
+        for i in range(len(input)):
+            # x=states[i][0]
+            # y=states[i][1]
+            pred=rangeNN(torch.tensor(previous_xtrain[i])).detach().numpy()
+            cur_xtrain.append(pred[5:10]+pred[20:25])
+
+        # X_train, X_test, y_train, y_test = train_test_split(cur_xtrain, cur_ytrain, test_size=0.05)
+        input=torch.tensor(cur_xtrain)
+        cur_train=list(zip(input,target))
+        train=train+cur_train
+        random.shuffle(train)
+
+
+        train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE)
+
+        for n, (inp, tar) in enumerate(train_loader):
+
+            if n >= EPOCHS:
+                break
+            # prediction
+            out = rangeNN(inp)
+            # update the parameters based on the loss
+            loss = joint_loss(out, tar) # compute the total loss
+            loss.backward()               # compute updates for each parameter
+            optimizer.step()              # make the updates for each parameter
+            optimizer.zero_grad() 
+            if n%100==0:        
+                print(f"epoch {n},loss is {loss}")
+
+        previous_xtrain=cur_xtrain
 
 ###########################################################################################################
 # class replay_buffer
@@ -394,8 +407,8 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
     # Obtain s_prime
     s_prime = get_state(env.continuous_state())
     s_prime_range = get_state_range(env.continuous_state())
-
-    return [(s_prime,action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)),(s_prime_range, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device))]
+    # s_p2_range = get_state_range(env.continuous_state().continuous_state())
+    return [(s_prime,action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)),( s_prime_range, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device))]
 
 
 ################################################################################################################
@@ -552,6 +565,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             dynamics=world_dynamics(t, replay_start_size, num_actions, s, env, policy_net)
             s_prime, action, reward, is_terminated = dynamics[0]
             sr_prime, actionr, rewardr, is_terminatedr = dynamics[1]
+            if False: 
+                current_s=sr_prime
+                rollout=[]
+                for i in range(ROLLOUT): 
+                    sub_rollout=[]
+                    s_next=get_state_range(env.continuous_state())
+                    sample = [transition(current_s, s_next, action, reward, is_terminated)]
+                    sub_rollout.append(sample)
+                    rollout.append(sub_rollout)
+
             sample = None
             if replay_off:
                 sample = [transition(s, s_prime, action, reward, is_terminated)]
@@ -572,6 +595,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
+                # if MULT_ROLLOUT==True:
+                #     range_train (sample_r, rollout, rangeNN)
                 range_train (sample_r, rangeNN)
                 if target_off:
                     train(sample, policy_net, policy_net, optimizer)
