@@ -15,4 +15,4 @@ for game in games:
                 with open(result_path, "a") as d:
                     d.write(str(r)+"\t"+str(frame)+"\n")
                 d.close()
-        f.close()`
+        f.close()
