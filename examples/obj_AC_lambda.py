@@ -138,7 +138,7 @@ transition = namedtuple('transition', 'state, last_state, action, reward, is_ter
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(cont_s, max_obj=40):
+def get_cont_state(cont_s, max_obj=60):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
