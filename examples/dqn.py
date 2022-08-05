@@ -226,6 +226,46 @@ def range_train (sample, rangeNN):
         optimizer.zero_grad()         # a clean up step for PyTorch
         if n%100==0: 
             print(loss)
+    
+    
+    tot_count=0
+    for elem in input: 
+            count=0
+            pred=rangeNN(torch.tensor(input))
+            runway_index_low=pred[5]
+            runway_pos_low=pred[6]
+            target_pos_low = pred[7]
+            bullet_pos_low = pred[8]
+            reward_low=pred[9]
+            runway_index=elem[0]
+            runway_pos=elem[1]
+            target_pos= elem[2]
+            bullet_pos = elem[3]
+            reward=elem[4]
+            runway_index_h=pred[20]
+            runway_pos_h=pred[21]
+            target_pos_h= pred[22]
+            bullet_pos_h = pred[23]
+            reward_h=pred[24]
+
+            for i in range(len(runway_index_low)):
+                if runway_index_low[i] <= runway_index and runway_index  <= runway_index_h[i]:
+                    count+=0.2
+            for i in range(len(runway_pos_low)):
+                if runway_pos_low[i]<=runway_pos and runway_pos  <= runway_pos_h[i]:
+                    count+=0.2
+            for i in range(len(target_pos_low)):
+                if target_pos_low[i]<=target_pos and target_pos  <= target_pos_h[i]:
+                    count+=0.2
+            for i in range(len(bullet_pos_low)):
+                if bullet_pos_low[i]<=bullet_pos and bullet_pos  <= bullet_pos_h[i]:
+                    count+=0.2
+            for i in range(len(reward_low)):
+                if reward_low[i]<=reward and reward <= reward_h[i]:
+                    count+=0.2
+            tot_count+=count
+
+    print(f"tot_correct_count: {tot_count}, correct percentage: {tot_count/(len(input)*len(runway_index_low))}")
 
    
 
