@@ -64,8 +64,8 @@ class Velenvironment():
 
                 #calculate and insert velocities for matched objects 
                 for j in range(len(assignmentscur)): 
-                    one_hot_x = [0 for i in range(10)]
-                    one_hot_y = [0 for i in range(10)]
+                    one_hot_x = [0 for i in range(20)]
+                    one_hot_y = [0 for i in range(20)]
                     one_hot_xvel = [0 for i in range(20)]
                     one_hot_yvel = [0 for i in range(20)]
                     curindex = assignmentscur[j]
@@ -85,8 +85,8 @@ class Velenvironment():
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
                 if len(current_state[i][j]) == 2: 
-                    one_hot_x = [0 for i in range(10)]
-                    one_hot_y = [0 for i in range(10)]
+                    one_hot_x = [0 for i in range(20)]
+                    one_hot_y = [0 for i in range(20)]
                     one_hot_xvel = [0 for i in range(20)]
                     one_hot_yvel = [0 for i in range(20)]
                     one_hot_x[int(current_state[i][j][0])] = 1
