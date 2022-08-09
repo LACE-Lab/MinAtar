@@ -2,8 +2,8 @@ games = ["space_invaders", "asterix", "breakout", "seaquest", "freeway"]
 dims = ["128", "256"]
 for game in games:
     for dim in dims:
-        PATH = f"/research/erin/zoshao/results/2022_08_03_{game}-k.txt"
-        result_path = f"/research/erin/zoshao/results/2022_08_03_{game}-k.results"
+        PATH = f"/research/erin/zoshao/results/2022_08_01_{game}_{dim}.txt"
+        result_path = f"/research/erin/zoshao/results/2022_08_01_{game}_{dim}.results"
         with open(PATH, 'r') as f:
             for l in f:
                 sp = l.split()
