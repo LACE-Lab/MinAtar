@@ -5,9 +5,6 @@ for game in games:
         PATH = f"/research/erin/zoshao/results/2022_08_01_{game}_{dim}.txt"
         result_path = f"/research/erin/zoshao/results/2022_08_01_{game}_{dim}.results"
         with open(PATH, 'r') as f:
-            with open(result_path, "a") as d:
-                d.write("Score"+"\t"+"#Frames"+"\n")
-            d.close()
             for l in f:
                 sp = l.split()
                 r = sp[8]
