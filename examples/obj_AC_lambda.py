@@ -138,12 +138,14 @@ transition = namedtuple('transition', 'state, last_state, action, reward, is_ter
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(cont_s, max_obj=60):
+def get_cont_state(game, cont_s, max_obj=60):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
     :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
     """
+    if game == "space_invaders":
+        max_obj = 60
     N = len(cont_s)
     obj_len = len(cont_s[0][0])
 
@@ -192,7 +194,7 @@ def world_dynamics(s, env, network):
     reward, terminated = env.act(action)
 
     # Obtain s_prime
-    s_prime = get_cont_state(env.continuous_state())
+    s_prime = get_cont_state(env.name, env.continuous_state())
 
     return s_prime, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)
 
@@ -317,7 +319,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
 
         # Initialize the environment and start state
         env.reset()
-        s = get_cont_state(env.continuous_state())
+        s = get_cont_state(env.name, env.continuous_state())
         is_terminated = False
         s_last = None
         r_last = None

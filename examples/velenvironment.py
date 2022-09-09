@@ -6,6 +6,7 @@ class Velenvironment():
     def __init__(self, env_name, sticky_action_prob = 0.1, difficulty_ramping = True, random_seed = None):
        
         self.env = Environment(env_name, sticky_action_prob = 0.1, difficulty_ramping = True, random_seed = None)
+        self.name = env_name
         self.past_state = self.env.continuous_state()
     # Wrapper for env.act
     def act(self, a):
