@@ -28,7 +28,7 @@ import numpy as np
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment import Velenvironment
+from velenvironment2 import VelenvironmentEncode
 
 
 #####################################################################################################################
@@ -398,6 +398,7 @@ def main():
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha", "-a", type=float, default=ALPHA)
     parser.add_argument("--save", "-s", action="store_true")
+    parser.add_argument("--onehot", "-e", action="store_true") # controls the format of input
     args = parser.parse_args()
 
     if args.verbose:
@@ -414,7 +415,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = Velenvironment(args.game)
+    env = VelenvironmentEncode(args.onehot, args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)
