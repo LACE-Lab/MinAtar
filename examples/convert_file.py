@@ -2,8 +2,8 @@ games = ["space_invaders", "asterix", "breakout", "seaquest", "freeway"]
 suffixes = ["AC_encoded", "AC", "-k", "-k2"]
 for game in games:
     for suffix in suffixes:
-        PATH = f"/research/erin/zoshao/results/2022_09_09_{game}.txt"
-        result_path = f"/research/erin/zoshao/results/2022_09_09_{game}.results"
+        PATH = f"/research/erin/zoshao/results/2022_09_09_{game}_{suffix}.txt"
+        result_path = f"/research/erin/zoshao/results/2022_09_09_{game}_{suffix}.results"
         with open(PATH, 'r') as f:
             for l in f:
                 sp = l.split()
