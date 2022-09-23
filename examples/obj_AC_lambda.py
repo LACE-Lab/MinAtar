@@ -415,7 +415,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = VelenvironmentVis(args.onehot, args.game)
+    env = VelenvironmentVis(args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)
