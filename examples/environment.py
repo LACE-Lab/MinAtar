@@ -94,6 +94,9 @@ class Environment:
 
     def continuous_state(self):
         return self.env.continuous_state()
+    
+    def invisible_map(self):
+        return self.env.invisible_map()
         
     # Return a string that represents the current state of the environment
     # (Not including the RNG state)

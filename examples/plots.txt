@@ -1,0 +1,15 @@
+cd object-filtering;
+python3 ../learningcurve/learningcurve.py
+-c 1
+-t 2
+-i
+-s 100
+-e
+-l "seaquest"
+-n /research/erin/zoshao/results/2022_09_09_seaquest.png
+-g "AC-encoded" "AC" "k1" "k2" "obj-DQN128"
+-a /research/erin/zoshao/results/2022_09_09_seaquest__AC_encoded*results
+-a /research/erin/zoshao/results/2022_09_09_seaquest__AC.results
+-a /research/erin/zoshao/results/2022_09_09_seaquest_-k.results
+-a /research/erin/zoshao/results/2022_09_09_seaquest_-k2*results
+-a /research/erin/zoshao/results/2022_08_01_seaquest_128.results

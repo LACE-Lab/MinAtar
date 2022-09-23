@@ -28,7 +28,7 @@ import numpy as np
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment2 import VelenvironmentEncode
+from velenvironment3 import VelenvironmentVis
 
 
 #####################################################################################################################
@@ -415,7 +415,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = VelenvironmentEncode(args.onehot, args.game)
+    env = VelenvironmentVis(args.onehot, args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)

@@ -3,7 +3,7 @@ suffixes = ["_AC_encoded", "_AC", "-k", "-k2"]
 for game in games:
     for suffix in suffixes:
         PATH = f"/research/erin/zoshao/results/2022_09_09_{game}{suffix}.txt"
-        result_path = f"/research/erin/zoshao/results/2022_09_09_{game}_{suffix}.results"
+        result_path = f"/research/erin/zoshao/results/2022_09_09_{game}{suffix}.results"
         with open(PATH, 'r') as f:
             for l in f:
                 sp = l.split()

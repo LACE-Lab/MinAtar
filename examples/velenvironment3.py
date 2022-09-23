@@ -2,13 +2,12 @@ from environment import Environment
 import numpy as np
 import scipy.optimize 
 import math
-class Velenvironment():
+class VelenvironmentVis():
     def __init__(self, env_name, sticky_action_prob = 0.1, difficulty_ramping = True, random_seed = None):
        
         self.env = Environment(env_name, sticky_action_prob = 0.1, difficulty_ramping = True, random_seed = None)
         self.name = env_name
         self.past_state = self.env.continuous_state()
-        self.maxObj = 0
     # Wrapper for env.act
     def act(self, a):
         self.past_state = self.env.continuous_state()
@@ -44,9 +43,13 @@ class Velenvironment():
     def close_display(self):
         self.env.close_display()
 
+    # This one is specially 32 objects in Breakout for a fixed order 
+    # Not use one-hot encoding
+    # Features include (xpos, ypos, xvel, yvel, one_hot for types, visible)
     def continuous_state(self):
 
         current_state = self.env.continuous_state()
+        invisible_map = self.env.invisible_map()
         
         for i in range(len(current_state)): 
             one_hot = [0 for i in range(len(current_state))]  #encode color
@@ -64,36 +67,30 @@ class Velenvironment():
 
                 #calculate and insert velocities for matched objects 
                 for j in range(len(assignmentscur)): 
-                    one_hot_x = [0 for i in range(20)]
-                    one_hot_y = [0 for i in range(20)]
-                    one_hot_xvel = [0 for i in range(20)]
-                    one_hot_yvel = [0 for i in range(20)]
                     curindex = assignmentscur[j]
                     pastindex = assignmentspast[j]
                     x = current_state[i][curindex][0]
-                    one_hot_x[int(x)] = 1
                     y = current_state[i][curindex][1]
-                    one_hot_y[int(y)] = 1
+                    if [x,y] in invisible_map:
+                        visible = 0
+                    else:
+                        visible = 1
                     xvel = x - self.past_state[i][pastindex][0]
-                    one_hot_xvel[int(xvel)+10] = 1
                     yvel = y - self.past_state[i][pastindex][1]
-                    one_hot_yvel[int(yvel)+10] = 1
-                    # current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
-                    current_state[i][curindex] = tuple(one_hot_x) + tuple(one_hot_y) + tuple(one_hot_xvel) + tuple(one_hot_yvel) + one_hot + (1,)
-                    # print(current_state[i][curindex])
+                    current_state[i][curindex] = (x,y,xvel,yvel,visible) + one_hot + (1,)
 
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
                 if len(current_state[i][j]) == 2: 
-                    one_hot_x = [0 for i in range(20)]
-                    one_hot_y = [0 for i in range(20)]
-                    one_hot_xvel = [0 for i in range(20)]
-                    one_hot_yvel = [0 for i in range(20)]
-                    one_hot_x[int(current_state[i][j][0])] = 1
-                    one_hot_y[int(current_state[i][j][1])] = 1
-                    current_state[i][j] = tuple(one_hot_x) + tuple(one_hot_y) + tuple(one_hot_xvel) + tuple(one_hot_yvel) + one_hot + (0,)
-                    # current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
-
+                    if [current_state[i][j][0],current_state[i][j][1]] in invisible_map:
+                        visible = 0
+                    else:
+                        visible = 1
+                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0, visible) + one_hot + (0,)
+        # obj_len = 0
+        # for i in range(4):
+            # obj_len += len(current_state[i])
+        # print(obj_len)
         return current_state
     
     def new_objects(self):
@@ -108,8 +105,6 @@ class Velenvironment():
             max_pad = 3 
             if  current_state[i] != [] and self.past_state[i] != [] : 
             
-                
-               
                 l1 = np.asarray(current_state[i])
                 l2 = np.asarray(self.past_state[i])
 

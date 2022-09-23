@@ -32,7 +32,7 @@ from tqdm import tqdm
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment import Velenvironment
+from velenvironment3 import VelenvironmentVis
 
 ################################################################################################################
 # Constants
@@ -67,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=256):
+                 hidden_dim=128):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -189,11 +189,7 @@ def get_cont_state(game, cont_s, max_obj=40):
     cont_state = []
     for i in range(N):
         for obj in cont_s[i]:
-            # Append to the list
-            # assert len(obj) == 12
-            # 9 FOR BREAKOUT AND ASTERIX, 12 FOR FREEWAY, 6 FOR TEST GAME
             cont_state.append(torch.tensor(obj, device=device))
-            # print("obj: ", obj)
 
     # Convert into one torch tensor
     cont_state = torch.vstack(cont_state)
@@ -517,7 +513,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = Velenvironment(args.game)
+    env = VelenvironmentVis(args.game)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)

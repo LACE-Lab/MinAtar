@@ -26,6 +26,7 @@ class Env:
         }
         self.action_map = ['n','l','u','r','d','f']
         self.random = np.random.RandomState(seed)
+        self.invisible_bricks = []
         self.reset()
 
     # Update environment according to agent action
@@ -74,6 +75,7 @@ class Env:
                 r+=1
                 self.strike = True
                 self.brick_map[new_y,new_x]=0
+                self.invisible_bricks.append([new_y,new_x])
                 new_y = self.last_y
                 self.ball_dir=[3,2,1,0][self.ball_dir]
         elif(new_y == 9):
@@ -98,6 +100,9 @@ class Env:
     # Query the current level of the difficulty ramp, difficulty does not ramp in this game, so return None
     def difficulty_ramp(self):
         return None  
+    
+    def invisible_map(self):
+        return self.invisible_bricks
 
     # Process the game-state into the 10x10xn state provided to the agent and return
     def state(self):
@@ -116,10 +121,13 @@ class Env:
         self.pos = 4
         self.brick_map = np.zeros((10,10))
         self.brick_map[1:4,:] = 1
+        self.brick_map_full = np.zeros((10,10))
+        self.brick_map_full[1:4,:] = 1
         self.strike = False
         self.last_x = self.ball_x
         self.last_y = self.ball_y
         self.terminal = False
+        self.invisible_bricks = []
 
     # Dimensionality of the game-state (10x10xn)
     def state_shape(self):
@@ -137,7 +145,7 @@ class Env:
         objByColor[self.channels['trail']].append((float(self.last_x), float(self.last_y))) # Trail
         for r in range(10):
             for c in range(10):
-                if self.brick_map[r, c]:
+                if self.brick_map_full[r, c]:
                     objByColor[self.channels['brick']].append((float(c), float(r))) # Bricks
         return objByColor;
     
@@ -148,7 +156,7 @@ class Env:
         state_str += str(self.pos) + " "
         for r in range(10):
             for c in range(10):
-                state_str += str(self.brick_map[r, c]) + " "
+                state_str += str(self.brick_map_full[r, c]) + " "
         state_str += str(int(self.strike)) + " "
         state_str += str(self.last_x) + " "
         state_str += str(self.last_y) + " "
