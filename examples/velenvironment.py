@@ -1,3 +1,4 @@
+from tkinter import TRUE
 from environment import Environment
 import numpy as np
 import scipy.optimize 
@@ -64,36 +65,29 @@ class Velenvironment():
 
                 #calculate and insert velocities for matched objects 
                 for j in range(len(assignmentscur)): 
-                    one_hot_x = [0 for i in range(20)]
-                    one_hot_y = [0 for i in range(20)]
-                    one_hot_xvel = [0 for i in range(20)]
-                    one_hot_yvel = [0 for i in range(20)]
+                    normalized = True
                     curindex = assignmentscur[j]
                     pastindex = assignmentspast[j]
-                    x = current_state[i][curindex][0]
-                    one_hot_x[int(x)] = 1
-                    y = current_state[i][curindex][1]
-                    one_hot_y[int(y)] = 1
-                    xvel = x - self.past_state[i][pastindex][0]
-                    one_hot_xvel[int(xvel)+10] = 1
-                    yvel = y - self.past_state[i][pastindex][1]
-                    one_hot_yvel[int(yvel)+10] = 1
-                    # current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
-                    current_state[i][curindex] = tuple(one_hot_x) + tuple(one_hot_y) + tuple(one_hot_xvel) + tuple(one_hot_yvel) + one_hot + (1,)
-                    # print(current_state[i][curindex])
+                    if (normalized):
+                        x = current_state[i][curindex][0] /10
+                        y = current_state[i][curindex][1] /10
+                        xvel = (x - self.past_state[i][pastindex][0]+10) /20
+                        yvel = (y - self.past_state[i][pastindex][1]+10) /20
+                        current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
+                    else:
+                        x = current_state[i][curindex][0]
+                        y = current_state[i][curindex][1]
+                        xvel = x - self.past_state[i][pastindex][0]
+                        yvel = y - self.past_state[i][pastindex][1]
+                        current_state[i][curindex] = (x,y,xvel,yvel) + one_hot + (1,)
 
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
-                if len(current_state[i][j]) == 2: 
-                    one_hot_x = [0 for i in range(20)]
-                    one_hot_y = [0 for i in range(20)]
-                    one_hot_xvel = [0 for i in range(20)]
-                    one_hot_yvel = [0 for i in range(20)]
-                    one_hot_x[int(current_state[i][j][0])] = 1
-                    one_hot_y[int(current_state[i][j][1])] = 1
-                    current_state[i][j] = tuple(one_hot_x) + tuple(one_hot_y) + tuple(one_hot_xvel) + tuple(one_hot_yvel) + one_hot + (0,)
-                    # current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
-
+                normalized = True
+                if len(current_state[i][j]) == 2 and normalized: 
+                    current_state[i][j] = (current_state[i][j][0]/10,current_state[i][j][1]/10,0,0) + one_hot + (0,)
+                elif len(current_state[i][j]) == 2:
+                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
         return current_state
     
     def new_objects(self):

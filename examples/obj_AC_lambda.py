@@ -28,7 +28,7 @@ import numpy as np
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment3 import VelenvironmentVis
+from velenvironment import Velenvironment
 
 
 #####################################################################################################################
@@ -159,9 +159,9 @@ def get_cont_state(game, cont_s, max_obj=40):
     cont_state = torch.vstack(cont_state)
 
     # Zero pad to the maximum allowed dimension
-    # size_pad = max_obj - cont_state.shape[0]
-    # pad = torch.zeros((size_pad, obj_len), device=device)
-    # cont_state = torch.cat([cont_state, pad])
+    size_pad = max_obj - cont_state.shape[0]
+    pad = torch.zeros((size_pad, obj_len), device=device)
+    cont_state = torch.cat([cont_state, pad])
 
     # Unsqueeze for the batch dimension
     cont_state = cont_state.unsqueeze(0)
@@ -415,7 +415,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = VelenvironmentVis(args.game)
+    env = Velenvironment(args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)
