@@ -88,11 +88,12 @@ class Velenvironment():
                     current_state[i][j] = (current_state[i][j][0]/10,current_state[i][j][1]/10,0,0) + one_hot + (0,)
                 elif len(current_state[i][j]) == 2:
                     current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
+        print(current_state)
         return current_state
     
     def new_objects(self):
 
-            
+        normalized = True
         current_state = self.env.continuous_state()
         new_state = []
         for i in range(len(current_state)): 
@@ -102,8 +103,6 @@ class Velenvironment():
             max_pad = 3 
             if  current_state[i] != [] and self.past_state[i] != [] : 
             
-                
-               
                 l1 = np.asarray(current_state[i])
                 l2 = np.asarray(self.past_state[i])
 
@@ -119,11 +118,16 @@ class Velenvironment():
                     y = current_state[i][curindex][1]
                     xvel = x - self.past_state[i][pastindex][0]
                     yvel = y - self.past_state[i][pastindex][1]
-                    current_state[i][curindex] = (x,y) + one_hot 
+                    if (normalized):
+                        current_state[i][curindex] = (x/10,y/10) + one_hot 
+                    else:
+                        current_state[i][curindex] = (x,y) + one_hot 
             
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
-                if len(current_state[i][j]) == 2: 
+                if len(current_state[i][j]) == 2 and normalized: 
+                    new_state +=  [list((current_state[i][j][0]/10,current_state[i][j][1]/10) + one_hot)]
+                elif len(current_state[i][j]) == 2:
                     new_state +=  [list((current_state[i][j][0],current_state[i][j][1]) + one_hot)]
         #pad with 0s up to a maximum number of new objects
         for i in range(max_pad - len(new_state)): 
