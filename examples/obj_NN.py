@@ -195,9 +195,9 @@ def get_cont_state(game, cont_s, max_obj=40):
     cont_state = torch.vstack(cont_state)
 
     # Zero pad to the maximum allowed dimension
-    size_pad = max_obj - cont_state.shape[0]
-    pad = torch.zeros((size_pad, obj_len), device=device)
-    cont_state = torch.cat([cont_state, pad])
+    # size_pad = max_obj - cont_state.shape[0]
+    # pad = torch.zeros((size_pad, obj_len), device=device)
+    # cont_state = torch.cat([cont_state, pad])
 
     # Unsqueeze for the batch dimension
     cont_state = cont_state.unsqueeze(0)
