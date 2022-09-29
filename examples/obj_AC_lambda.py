@@ -61,7 +61,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #
 #####################################################################################################################
 class ACNetwork(pl.LightningModule, nn.Module):
-    def __init__(self, in_channels, num_actions, hidden_dim=128):
+    def __init__(self, in_channels, num_actions, hidden_dim=512):
 
         super(ACNetwork, self).__init__()
         self.save_hyperparameters()
@@ -90,7 +90,7 @@ class ACNetwork(pl.LightningModule, nn.Module):
             nn.Linear(int(hidden_dim / 2), num_actions)
         )
         
-        self.value = nn.Linear(in_features=128, out_features=1)
+        self.value = nn.Linear(in_features=hidden_dim, out_features=1)
 
     def forward(self, s, debug=False):
         """
