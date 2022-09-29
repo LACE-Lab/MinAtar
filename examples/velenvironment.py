@@ -88,7 +88,6 @@ class Velenvironment():
                     current_state[i][j] = (current_state[i][j][0]/10,current_state[i][j][1]/10,0,0) + one_hot + (0,)
                 elif len(current_state[i][j]) == 2:
                     current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0) + one_hot + (0,)
-        print(current_state)
         return current_state
     
     def new_objects(self):
@@ -133,9 +132,6 @@ class Velenvironment():
         for i in range(max_pad - len(new_state)): 
             new_state += [[0,0] + [0 for i in range(len(current_state))]]
 
-              
-            
-        
         return new_state
     # Return a string that represents the current state of the environment
     # (Not including the RNG state)
