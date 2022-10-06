@@ -32,7 +32,7 @@ from tqdm import tqdm
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment import Velenvironment
+from velenvironment3 import VelenvironmentVis
 
 ################################################################################################################
 # Constants
@@ -174,7 +174,7 @@ def get_state(s):
     s = np.array(s)
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(game, cont_s, max_obj=40):
+def get_cont_state(game, cont_s, max_obj=33):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
@@ -199,6 +199,7 @@ def get_cont_state(game, cont_s, max_obj=40):
         pad = [0]*obj_len
         cont_state += pad
     cont_state = torch.Tensor(cont_state).unsqueeze(0).unsqueeze(0).float()
+    # print(cont_state)
     return cont_state
 
     # Version for one-hot encoding
@@ -334,7 +335,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
-    in_channels = 360 #change
+    in_channels = 330 #change
     num_actions = env.num_actions()
     # print("num_actions: ", num_actions)
 
@@ -511,7 +512,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = Velenvironment(args.game)
+    env = VelenvironmentVis(args.game)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)

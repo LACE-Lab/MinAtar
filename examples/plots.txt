@@ -5,11 +5,12 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "seaquest"
--n /research/erin/zoshao/results/2022_09_09_seaquest.png
--g "AC-encoded" "AC" "k1" "k2" "obj-DQN128"
--a /research/erin/zoshao/results/2022_09_09_seaquest__AC_encoded*results
--a /research/erin/zoshao/results/2022_09_09_seaquest__AC.results
--a /research/erin/zoshao/results/2022_09_09_seaquest_-k.results
--a /research/erin/zoshao/results/2022_09_09_seaquest_-k2*results
--a /research/erin/zoshao/results/2022_08_01_seaquest_128.results
+-l "breakout"
+-n /research/erin/zoshao/results/2022_09_29_breakout_ac.png
+-g "512" "min" "no0" "normalized" "vector" "128"
+-a /research/erin/zoshao/results/2022_09_29_breakout_ac_512.results
+-a /research/erin/zoshao/results/2022_09_29_breakout_ac_min.results
+-a /research/erin/zoshao/results/2022_09_29_breakout_ac_no0.results
+-a /research/erin/zoshao/results/2022_09_29_breakout_ac_normalized.results
+-a /research/erin/zoshao/results/2022_09_29_breakout_ac_vector.results
+-a /research/erin/zoshao/results/2022_08_03_breakout.results

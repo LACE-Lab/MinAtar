@@ -28,7 +28,7 @@ import numpy as np
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment import Velenvironment
+from velenvironment3 import VelenvironmentVis
 
 
 #####################################################################################################################
@@ -138,7 +138,7 @@ transition = namedtuple('transition', 'state, last_state, action, reward, is_ter
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(game, cont_s, max_obj=40):
+def get_cont_state(game, cont_s, max_obj=33):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
@@ -271,7 +271,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
-    in_channels = 360 #change
+    in_channels = 330 #change
     num_actions = env.num_actions()
 
     # Instantiate networks, optimizer, loss and buffer
@@ -411,7 +411,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = Velenvironment(args.game)
+    env = VelenvironmentVis(args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)
