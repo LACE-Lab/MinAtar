@@ -67,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=128):
+                 hidden_dim=512):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -108,7 +108,7 @@ class QNetwork(pl.LightningModule, nn.Module):
 
         # Calculate the object embedding
         emb_objs = self.encoder(s)
-        emb_objs_vector = torch.mean(emb_objs, dim=1)
+        emb_objs_vector, _ = torch.max(emb_objs, dim=1)
 
         reward = self.decoder(emb_objs_vector)
         # reward = self.decoder(emb_objs)

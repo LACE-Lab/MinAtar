@@ -101,7 +101,7 @@ class ACNetwork(pl.LightningModule, nn.Module):
 
         # Calculate the object embedding
         emb_objs = self.encoder(s)
-        emb_objs_vector = torch.mean(emb_objs, dim=1)
+        emb_objs_vector, _ = torch.max(emb_objs, dim=1)
         policy = self.decoder(emb_objs_vector)
         # reward = self.decoder(emb_objs)
         # print("rewards: ", reward)
