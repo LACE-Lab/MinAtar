@@ -65,7 +65,7 @@ class Velenvironment():
 
                 #calculate and insert velocities for matched objects 
                 for j in range(len(assignmentscur)): 
-                    normalized = False
+                    normalized = True
                     curindex = assignmentscur[j]
                     pastindex = assignmentspast[j]
                     if (normalized):
@@ -83,7 +83,7 @@ class Velenvironment():
 
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
-                normalized = False
+                normalized = True
                 if len(current_state[i][j]) == 2 and normalized: 
                     current_state[i][j] = (current_state[i][j][0]/10,current_state[i][j][1]/10,0,0) + one_hot + (0,)
                 elif len(current_state[i][j]) == 2:
@@ -92,7 +92,7 @@ class Velenvironment():
     
     def new_objects(self):
 
-        normalized = False
+        normalized = True
         current_state = self.env.continuous_state()
         new_state = []
         for i in range(len(current_state)): 
