@@ -67,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=512):
+                 hidden_dim=128):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
