@@ -1,11 +1,11 @@
 games = ["breakout"]
 suffixes1 = ["ac", "dqn"]
-suffixes2 = ["mean", "512", "normalization", "vector"]
+suffixes2 = ["512"]
 for game in games:
     for suffix1 in suffixes1:
         for suffix2 in suffixes2:
-            PATH = f"/research/erin/zoshao/results/2022_10_05_{game}_{suffix1}_{suffix2}.txt"
-            result_path = f"/research/erin/zoshao/results/2022_10_05_{game}_{suffix1}_{suffix2}.results"
+            PATH = f"/research/erin/zoshao/results/2022_09_29_{game}_{suffix1}_{suffix2}.txt"
+            result_path = f"/research/erin/zoshao/results/2022_09_29_{game}_{suffix1}_{suffix2}.results"
             with open(PATH, 'r') as f:
                 for l in f:
                     sp = l.split()
