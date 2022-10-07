@@ -61,7 +61,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #
 #####################################################################################################################
 class ACNetwork(pl.LightningModule, nn.Module):
-    def __init__(self, in_channels, num_actions, hidden_dim=512):
+    def __init__(self, in_channels, num_actions, hidden_dim=128):
 
         super(ACNetwork, self).__init__()
         self.save_hyperparameters()

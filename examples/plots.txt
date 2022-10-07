@@ -6,11 +6,9 @@ python3 ../learningcurve/learningcurve.py
 -s 100
 -e
 -l "breakout"
--n /research/erin/zoshao/results/2022_09_29_breakout_ac.png
--g "512" "min" "no0" "normalized" "vector" "128"
--a /research/erin/zoshao/results/2022_09_29_breakout_ac_512.results
--a /research/erin/zoshao/results/2022_09_29_breakout_ac_min.results
--a /research/erin/zoshao/results/2022_09_29_breakout_ac_no0.results
--a /research/erin/zoshao/results/2022_09_29_breakout_ac_normalized.results
--a /research/erin/zoshao/results/2022_09_29_breakout_ac_vector.results
--a /research/erin/zoshao/results/2022_08_03_breakout.results
+-n /research/erin/zoshao/results/2022_10_07_breakout_ac.png
+-g "512" "mean" "normalized" "vector"
+-a /research/erin/zoshao/results/2022_10_05_breakout_ac_512.results
+-a /research/erin/zoshao/results/2022_10_05_breakout_ac_mean.results
+-a /research/erin/zoshao/results/2022_10_05_breakout_ac_normalization.results
+-a /research/erin/zoshao/results/2022_10_05_breakout_ac_vector.results
