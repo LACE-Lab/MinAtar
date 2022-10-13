@@ -77,7 +77,7 @@ class VelenvironmentVis():
                         visible = 1
                     xvel = x - self.past_state[i][pastindex][0]
                     yvel = y - self.past_state[i][pastindex][1]
-                    current_state[i][curindex] = (x,y,xvel,yvel,visible) + one_hot + (1,)
+                    current_state[i][curindex] = (x,y,xvel,yvel,visible) + (1,)
 
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
@@ -86,7 +86,7 @@ class VelenvironmentVis():
                         visible = 0
                     else:
                         visible = 1
-                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0, visible) + one_hot + (0,)
+                    current_state[i][j] = (current_state[i][j][0],current_state[i][j][1],0,0, visible) + (0,)
         # obj_len = 0
         # for i in range(4):
             # obj_len += len(current_state[i])
@@ -120,15 +120,15 @@ class VelenvironmentVis():
                     y = current_state[i][curindex][1]
                     xvel = x - self.past_state[i][pastindex][0]
                     yvel = y - self.past_state[i][pastindex][1]
-                    current_state[i][curindex] = (x,y) + one_hot 
+                    current_state[i][curindex] = (x,y)
             
             #Set velocities of unmatched objects to 0 
             for j in range(len(current_state[i])):
                 if len(current_state[i][j]) == 2: 
-                    new_state +=  [list((current_state[i][j][0],current_state[i][j][1]) + one_hot)]
+                    new_state +=  [list(current_state[i][j][0],current_state[i][j][1])]
         #pad with 0s up to a maximum number of new objects
         for i in range(max_pad - len(new_state)): 
-            new_state += [[0,0] + [0 for i in range(len(current_state))]]
+            new_state += [[0,0]]
 
               
             
