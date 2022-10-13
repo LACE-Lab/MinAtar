@@ -273,7 +273,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
-    in_channels = 198 #change
+    in_channels = 270 #change
     num_actions = env.num_actions()
 
     # Instantiate networks, optimizer, loss and buffer
