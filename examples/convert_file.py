@@ -1,6 +1,6 @@
 games = ["breakout"]
 suffixes1 = ["ac"]
-suffixes2 = ["0.01","0.001","0.0001", "0.00001", "0.000001"]
+suffixes2 = ["decoder", "no_brick_v_0.00001", "no_brick_v_0.0001", "no_type_matrix", "no_type_matrix_0.00001", "no_type_vec_0.00001", "no_type_vec_0.0001"]
 for game in games:
     for suffix1 in suffixes1:
         for suffix2 in suffixes2:
