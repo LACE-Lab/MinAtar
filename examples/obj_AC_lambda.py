@@ -28,7 +28,7 @@ import numpy as np
 
 from collections import namedtuple
 from environment import Environment
-from velenvironment3 import VelenvironmentVis
+from velenvironment import Velenvironment
 
 
 #####################################################################################################################
@@ -138,7 +138,7 @@ transition = namedtuple('transition', 'state, last_state, action, reward, is_ter
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
-def get_cont_state(game, cont_s, max_obj=33):
+def get_cont_state(game, cont_s, max_obj=40):
     """
     Return the continuous state of the environment as a torch array.
     :param cont_s: Continuous state.
@@ -149,19 +149,22 @@ def get_cont_state(game, cont_s, max_obj=33):
     N = len(cont_s)
     obj_len = len(cont_s[0][0])
 
-   # Collect all the states
+    # Collect all the states
     cont_state = []
-    obj_num = 0
     for i in range(N):
         for obj in cont_s[i]:
-            obj_num +=1
-            cont_state += obj
+            cont_state.append(torch.tensor(obj, device=device))
+
+    # Convert into one torch tensor
+    cont_state = torch.vstack(cont_state)
+
     # Zero pad to the maximum allowed dimension
-    size_pad = max_obj - obj_num
-    for i in range(size_pad):
-        pad = [0]*obj_len
-        cont_state += pad
-    cont_state = torch.Tensor(cont_state).unsqueeze(0).unsqueeze(0).float()
+    size_pad = max_obj - cont_state.shape[0]
+    pad = torch.zeros((size_pad, obj_len), device=device)
+    cont_state = torch.cat([cont_state, pad])
+
+    # Unsqueeze for the batch dimension
+    cont_state = cont_state.unsqueeze(0)
     
     # print(cont_state)
     return cont_state
@@ -243,7 +246,7 @@ def train(sample, traces, grads, MSGs, network, alpha, time_step):
             for param, trace, MSG in zip(network.parameters(), traces, MSGs):
                 grad = trace*delta[0]+BETA*param.grad
                 MSG.copy_(GAMMA_RMS*MSG+(1-GAMMA_RMS)*grad*grad)
-                param.copy_(param+alpha*grad/(torch.sqrt(MSG/(1-GAMMA_RMS**(time_step+1))+EPS_RMS)))
+                param.copy_(param+alpha*grad/(torch.sqrt(MSG/(1-GAMMA_RMS**(time_step+1))+EPS_RMS))) # puzzling
 
     # Always update trace
     with torch.no_grad():
@@ -273,7 +276,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
-    in_channels = 270 #change
+    in_channels = length #change
     num_actions = env.num_actions()
 
     # Instantiate networks, optimizer, loss and buffer
@@ -413,7 +416,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = VelenvironmentVis(args.game)
+    env = Velenvironment(args.game)
 
     print('Cuda available?:'+str(torch.cuda.is_available()))
     AC_lambda(env, file_name, args.save, load_file_path, alpha=args.alpha)
