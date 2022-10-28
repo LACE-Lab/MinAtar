@@ -212,7 +212,7 @@ def world_dynamics(s, env, network):
 #   alpha: learning rate for actor-critic update
 #
 #####################################################################################################################
-def train(sample, traces, grads, MSGs, network, alpha, time_step):
+def train(sample, traces, grads, MSGs, network, alpha, time_step, optimizer):
     # states, next_states: (1, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal: (1, 1)
     last_state = sample.last_state
@@ -252,7 +252,10 @@ def train(sample, traces, grads, MSGs, network, alpha, time_step):
     with torch.no_grad():
         for grad, trace in zip(grads, traces):
             trace.copy_(LAMBDA*GAMMA*trace+grad)
-
+    
+    # Zero gradients, backprop, update the weights of policy_net
+    optimizer.zero_grad()
+    optimizer.step()
 
 
 #####################################################################################################################
@@ -290,6 +293,8 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
 
     # Running average of mean squared gradient for use in RMSProp
     MSG = [torch.zeros(x.size(), dtype=torch.float32, device=device) for x in network.parameters()]
+    
+    optimizer = torch.optim.Adam(network.parameters(), lr=alpha, weight_decay=1e-5)
 
     # Set initial values
     e = 0
@@ -331,7 +336,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
 
             sample = transition(s, s_last, action, r_last, term_last)
 
-            train(sample, traces, grads, MSG, network, alpha, t)
+            train(sample, traces, grads, MSG, network, alpha, t, optimizer)
 
             G += reward.item()
 
@@ -346,7 +351,7 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
         # Increment the episodes
         e += 1
         sample = transition(s, s_last, action, r_last, term_last)
-        train(sample, traces, grads, MSG, network, alpha, t)
+        train(sample, traces, grads, MSG, network, alpha, t, optimizer)
 
         # Clear elligibility traces after each episode
         for trace in traces:

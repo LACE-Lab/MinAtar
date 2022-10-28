@@ -5,11 +5,11 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "breakout (with step size of 0.00001)"
--n /research/erin/zoshao/results/2022_10_12_breakout_ac_0.00001.png
--g "no added layers" "added layers" "no brick v (vector form)" "no type (matrix form)" "no type (vector form)"
--a /research/erin/zoshao/results/2022_10_12_breakout_ac_0.00001.results
--a /research/erin/zoshao/results/2022_10_12_breakout_ac_0.00001_decoder.results
--a /research/erin/zoshao/results/2022_10_12_breakout_ac_no_brick_v_0.00001.results
--a /research/erin/zoshao/results/2022_10_12_breakout_ac_no_type_matrix_0.00001.results
--a /research/erin/zoshao/results/2022_10_12_breakout_ac_no_type_vec_0.00001.results
+-l "breakout"
+-n /research/erin/zoshao/results/2022_10_18_breakout_dqn_.png
+-g "0.000001" "0.00001" "0.0001" "0.001" "0.01"
+-a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.000001.results
+-a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.00001.results
+-a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.0001.results
+-a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.001.results
+-a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.01.results
