@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 import numpy, argparse, logging, os
 import numpy as np
+import cProfile
 
 from collections import namedtuple
 from environment import Environment
@@ -423,4 +424,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    cProfile.run('main()', '/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.01_no_opt')
