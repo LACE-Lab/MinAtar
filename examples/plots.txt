@@ -5,11 +5,10 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "breakout"
--n /research/erin/zoshao/results/2022_10_18_breakout_dqn_.png
--g "0.000001" "0.00001" "0.0001" "0.001" "0.01"
--a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.000001.results
--a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.00001.results
--a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.0001.results
--a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.001.results
--a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.01.results
+-l "asterix"
+-n /research/erin/zoshao/results/2022_10_28_asterix_ac.png
+-g "0.000001" "0.00001" "0.0001" "0.001"
+-a /research/erin/zoshao/results/2022_10_18_asterix_ac_0.000001.results
+-a /research/erin/zoshao/results/2022_10_18_asterix_ac_0.00001.results
+-a /research/erin/zoshao/results/2022_10_18_asterix_ac_0.0001.results
+-a /research/erin/zoshao/results/2022_10_18_asterix_ac_0.001.results
