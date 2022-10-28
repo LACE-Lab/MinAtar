@@ -18,14 +18,14 @@ for game in games:
                     d.close()
             f.close()
     
-file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.00001_no_opt.txt', 'w')
-profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.00001_no_opt_tottime', stream=file)
+file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.00001_no_opt_tottime.txt', 'w')
+profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.00001_no_opt', stream=file)
 profile.sort_stats('tottime') # Sorts the result according to the supplied criteria
 profile.print_stats(30) # Prints the first 15 lines of the sorted report
 file.close()
 
-file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.01_no_opt.txt', 'w')
-profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.01_no_opt_tottime', stream=file)
+file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.01_no_opt_tottime.txt', 'w')
+profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_0.01_no_opt', stream=file)
 profile.sort_stats('tottime') # Sorts the result according to the supplied criteria
 profile.print_stats(30) # Prints the first 15 lines of the sorted report
 file.close()
