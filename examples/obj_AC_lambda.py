@@ -432,8 +432,3 @@ def main():
 
 if __name__ == '__main__':
     cProfile.run('main()', '/research/erin/zoshao/results/2022_10_28_profile_results_ac_pre')
-    file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac.txt', 'w')
-    profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_pre', stream=file)
-    profile.sort_stats('cumulative') # Sorts the result according to the supplied criteria
-    profile.print_stats(30) # Prints the first 15 lines of the sorted report
-    file.close()
