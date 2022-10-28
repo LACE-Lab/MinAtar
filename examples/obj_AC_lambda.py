@@ -25,6 +25,9 @@ from tqdm import tqdm
 
 import numpy, argparse, logging, os
 import numpy as np
+import cProfile
+import pstats
+import io
 
 from collections import namedtuple
 from environment import Environment
@@ -428,5 +431,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-
+    cProfile.run('main()', '/research/erin/zoshao/results/2022_10_28_profile_results_ac_pre')
+    file = open('/research/erin/zoshao/results/2022_10_28_profile_results_ac.txt', 'w')
+    profile = pstats.Stats('/research/erin/zoshao/results/2022_10_28_profile_results_ac_pre', stream=file)
+    profile.sort_stats('cumulative') # Sorts the result according to the supplied criteria
+    profile.print_stats(30) # Prints the first 15 lines of the sorted report
+    file.close()
