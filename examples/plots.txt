@@ -6,6 +6,6 @@ python3 ../learningcurve/learningcurve.py
 -s 100
 -e
 -l "breakout"
--n /research/erin/zoshao/results/2022_10_28_breakout_ac.png
+-n /research/erin/zoshao/results/2022_11_4_breakout_ac.png
 -g "0.00001"
 -a /research/erin/zoshao/results/2022_10_18_breakout_ac_0.00001.results

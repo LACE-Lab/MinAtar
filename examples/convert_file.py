@@ -1,6 +1,6 @@
 import pstats
 
-games = ["seaquest", "asterix","breakout"]
+games = ["breakout"]
 suffixes1 = ["ac","dqn"]
 suffixes2 = ["0.000001", "0.00001", "0.0001", "0.001"]
 for game in games:
