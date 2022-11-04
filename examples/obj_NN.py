@@ -515,6 +515,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
+    print(args.game)
     env = Velenvironment(args.game)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
