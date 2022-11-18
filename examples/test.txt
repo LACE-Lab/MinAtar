@@ -1,0 +1,4 @@
+Episode 1000 | Return: -33.0 | Avg return: -19.1 | Frame: 1032 | Time per frame: 0.04097010183703992
+Episode 2000 | Return: -7.0 | Avg return: -16.65 | Frame: 2006 | Time per frame: 0.059224671998979565
+Episode 3000 | Return: -2.0 | Avg return: -15.09 | Frame: 3001 | Time per frame: 0.062009378895287674
+Episode 4000 | Return: -25.0 | Avg return: -13.75 | Frame: 4024 | Time per frame: 0.06214196645241846

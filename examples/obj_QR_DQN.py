@@ -130,6 +130,10 @@ class QNetwork(pl.LightningModule, nn.Module):
     def validation_step(self, val_batch, batch_idx):
         loss = self.loss_fn(val_batch)
         self.log('train_loss', loss)
+    
+    def get_action(self,input):
+        x = self.forward(input)
+        return x.mean(dim=1)
 
 
 ###########################################################################################################
@@ -248,10 +252,14 @@ def world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net):
             # view(1,1) shapes the tensor to be the right form (e.g. tensor([[0]])) without copying the
             # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
             with torch.no_grad():
-                value = policy_net(s_cont)
-                max_elements, max_idxs = torch.max(value, dim=1)
-                max_elem, max_idx = torch.max(max_elements, dim=1)
-                action = max_idx.unsqueeze(0).view(1,1)
+                action_values =  policy_net.get_action(s_cont)
+                # print(action_values)
+                action = torch.tensor(np.argmax(action_values.cpu().data.numpy())).unsqueeze(0).unsqueeze(0)
+                # print(action)
+                # value = policy_net(s_cont)
+                # max_elements, max_idxs = torch.max(value, dim=1)
+                # max_elem, max_idx = torch.max(max_elements, dim=1)
+                # action = max_idx.unsqueeze(0).view(1,1)
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
