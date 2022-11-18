@@ -251,7 +251,7 @@ def world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net):
                 value = policy_net(s_cont)
                 max_elements, max_idxs = torch.max(value, dim=1)
                 max_elem, max_idx = torch.max(max_elements, dim=1)
-                action = max_idx.view(1,1)
+                action = max_idx.unsqueeze(0).view(1,1)
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
