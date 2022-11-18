@@ -247,7 +247,7 @@ def world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net):
             # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
             with torch.no_grad():
                 action = policy_net(s_cont).max(1)[1].view(1, 1)
-                print(action)
+                # print(action)
 
     # Act according to the action and observe the transition and reward
     reward, terminated = env.act(action)
@@ -342,7 +342,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     in_channels = length #change
     print("in: ", in_channels)
     num_actions = env.num_actions()
-    # print("num_actions: ", num_actions)
+    print("num_actions: ", num_actions)
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(num_actions=num_actions, in_channels=in_channels).to(device)

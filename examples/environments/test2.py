@@ -21,7 +21,7 @@ class Env:
         self.channels ={
             'player':0,
         }
-        self.action_map = ['l','u','r','d']
+        self.action_map = ['ul','ur','dr','dl']
         self.random = np.random.RandomState(seed)
         self.reset()
 
@@ -34,16 +34,20 @@ class Env:
         a = self.action_map[a]
 
         # Resolve player action
-        if(a=='l'):
+        if(a=='ul'):
             self.player_x = max(0, self.player_x-1)
-        elif(a=='r'):
-            self.player_x = min(2, self.player_x+1)
-        elif(a=='u'):
-            self.player_y = max(0, self.player_y-1)
-        elif(a=='d'):
             self.player_y = min(2, self.player_y+1)
+        elif(a=='ur'):
+            self.player_x = min(2, self.player_x+1)
+            self.player_y = min(2, self.player_y+1)
+        elif(a=='dr'):
+            self.player_x = min(2, self.player_x+1)
+            self.player_y = max(0, self.player_y-1)
+        elif(a=='dl'):
+            self.player_x = max(0, self.player_x-1)
+            self.player_y = max(0, self.player_y-1)
 
-        if ((self.player_y == 2) and (self.player_x == 2)):
+        if (self.player_x == 2):
             self.terminal = True
         
         return r, self.terminal
