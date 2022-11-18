@@ -339,6 +339,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
     in_channels = length #change
+    print("in: ", in_channels)
     num_actions = env.num_actions()
     # print("num_actions: ", num_actions)
 

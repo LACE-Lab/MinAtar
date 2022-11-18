@@ -50,14 +50,8 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1.0
-TAU = 1e-2
-LR = 1e-3
-
-n_step = 1
-N = 32
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-quantile_tau = torch.FloatTensor([i/N for i in range(1,N+1)]).to(device)
 
 
 ################################################################################################################
@@ -69,32 +63,29 @@ quantile_tau = torch.FloatTensor([i/N for i in range(1,N+1)]).to(device)
 # valid action.
 #
 ################################################################################################################
-def weight_init(layers):
-    for layer in layers:
-        torch.nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
-
 class QNetwork(nn.Module):
-    def __init__(self, state_size, action_size,layer_size, n_step, seed, N, layer_type="ff"):
-        super(QNetwork, self).__init__()
-        self.seed = torch.manual_seed(seed)
-        self.input_shape = state_size
-        self.action_size = action_size
-        self.N = N
+    def __init__(self, len_state, num_quant, num_actions):
+        nn.Module.__init__(self)
+        
+        self.num_quant = num_quant
+        self.num_actions = num_actions
+        
+        self.layer1 = nn.Linear(len_state, 256)
+        self.layer2 = nn.Linear(256, num_actions*num_quant)  
 
-        self.head_1 = nn.Linear(self.input_shape[0], layer_size)
-        self.ff_1 = nn.Linear(layer_size, layer_size)
-        self.ff_2 = nn.Linear(layer_size, action_size*N)
-        weight_init([self.head_1, self.ff_1])
-
-    def forward(self, input):
-        x = torch.relu(self.head_1(input))
-        x = torch.relu(self.ff_1(x))
-        out = self.ff_2(x)
-        return out.view(input.shape[0], self.N, self.action_size)
+    def forward(self, x):
+        x = self.layer1(x)
+        x = torch.tanh(x)
+        x = self.layer2(x)
+        return x.view(-1, self.num_actions, self.num_quant)
     
-    def get_action(self,input):
-        x = self.forward(input)
-        return x.mean(dim=1)
+    def select_action(self, state, eps):
+        if not isinstance(state, torch.Tensor): 
+            state = torch.Tensor([state])    
+        action = torch.randint(0, 2, (1,))
+        if random.random() > eps:
+            action = self.forward(state).mean(2).max(1)[1]
+        return int(action)
 
 
 ###########################################################################################################
@@ -141,6 +132,37 @@ class replay_buffer:
 def get_state(s):
     return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
 
+def get_cont_state(game, cont_s, max_obj=40):
+    """
+    Return the continuous state of the environment as a torch array.
+    :param cont_s: Continuous state.
+    :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
+    """
+    if game == "space_invaders":
+        max_obj = 60
+    N = len(cont_s)
+    obj_len = len(cont_s[0][0])
+    
+    # Collect all the states
+    cont_state = []
+    for i in range(N):
+        for obj in cont_s[i]:
+            cont_state.append(torch.tensor(obj, device=device))
+
+    # Convert into one torch tensor
+    cont_state = torch.vstack(cont_state)
+
+    # Zero pad to the maximum allowed dimension
+    size_pad = max_obj - cont_state.shape[0]
+    pad = torch.zeros((size_pad, obj_len), device=device)
+    cont_state = torch.cat([cont_state, pad])
+
+    # Unsqueeze for the batch dimension
+    cont_state = cont_state.unsqueeze(0)
+    
+    # print(cont_state)
+    return cont_state
+
 ################################################################################################################
 # world_dynamics
 #
@@ -184,7 +206,7 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
     reward, terminated = env.act(action)
 
     # Obtain s_prime
-    s_prime = get_state(env.state())
+    s_prime = get_cont_state(env.name, env.continuous_state())
 
     return s_prime, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)
 
@@ -202,22 +224,10 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-def calculate_huber_loss(td_errors, k=1.0):
-    """
-    Calculate huber loss element-wisely depending on kappa k.
-    """
-    loss = torch.where(td_errors.abs() <= k, 0.5 * td_errors.pow(2), k * (td_errors.abs() - 0.5 * k))
-    assert loss.shape == (td_errors.shape[0], 32, 32), "huber loss has wrong shape"
-    return loss
-
-
-def train(sample, qnetwork_local, qnetwork_target, optimizer):
-    optimizer.zero_grad()
-    
+def train(sample, policy_net, target_net, optimizer, tau):
     # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
     batch_samples = transition(*zip(*sample))
-    # print(batch_samples)
-    
+
     # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
     states = torch.cat(batch_samples.state)
@@ -225,33 +235,31 @@ def train(sample, qnetwork_local, qnetwork_target, optimizer):
     actions = torch.cat(batch_samples.action)
     rewards = torch.cat(batch_samples.reward)
     is_terminal = torch.cat(batch_samples.is_terminal)
-    
-    Q_targets_next = qnetwork_target(next_states).detach().cpu() #.max(2)[0].unsqueeze(1) #(batch_size, 1, N)
-    action_indx = torch.argmax(Q_targets_next.mean(dim=1), dim=1, keepdim=True)
 
-    Q_targets_next = Q_targets_next.gather(2, action_indx.unsqueeze(-1).expand(BATCH_SIZE, N, 1)).transpose(1,2)
+    # # Get the indices of next_states that are not terminal
+    # none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+    # # Select the indices of each row
+    # none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
 
-    assert Q_targets_next.shape == (BATCH_SIZE,1, N)
-    # Compute Q targets for current states 
-    Q_targets = rewards.unsqueeze(-1) + (GAMMA**n_step * Q_targets_next.to(device) * (1 - is_terminal.unsqueeze(-1)))
-    # Get expected Q values from local model
-    Q_expected = qnetwork_local(states).gather(2, actions.unsqueeze(-1).expand(BATCH_SIZE, N, 1))
-    # Compute loss
-    td_error = Q_targets - Q_expected
-    assert td_error.shape == (BATCH_SIZE, N, N), "wrong td error shape"
-    huber_l = calculate_huber_loss(td_error, 1.0)
-    quantil_l = abs(quantile_tau -(td_error.detach() < 0).float()) * huber_l / 1.0
+    # Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
+    # if len(none_terminal_next_states) != 0:
+    #     Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
 
-    loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
+    # Huber loss
+    theta = policy_net(states)[np.arange(BATCH_SIZE), actions]
+        
+    Znext = target_net(next_states).detach()
+    Znext_max = Znext[np.arange(BATCH_SIZE), Znext.mean(2).max(1)[1]]
+    Ttheta = rewards + GAMMA * (1 - is_terminal) * Znext_max
+        
+    diff = Ttheta.t().unsqueeze(-1) - theta 
+    loss = huber(diff) * (tau - (diff.detach() < 0).float()).abs()
     loss = loss.mean()
-    # Minimize the loss
-    loss.backward()
-    #clip_grad_norm_(self.qnetwork_local.parameters(),1)
-    optimizer.step()
 
-    # ------------------- update target network ------------------- #
-    soft_update(qnetwork_local, qnetwork_target)
-    return loss.detach().cpu().numpy()  
+    # Zero gradients, backprop, update the weights of policy_net
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
 
 ################################################################################################################
@@ -271,36 +279,31 @@ def train(sample, qnetwork_local, qnetwork_target, optimizer):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
+def huber(x, k=1.0):
+    return torch.where(x.abs() < k, 0.5 * x.pow(2), k * (x.abs() - 0.5 * k))
+
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
-    in_channels = env.state_shape()[0]
-    num_actions = 4
-    seed = 1
-    np.random.seed(seed)
-    Q_updates = 0
+    in_channels = len(env.continuous_state()[0][0])
+    print("in: ", env.continuous_state())
+    num_actions = env.num_actions()
+    eps_start, eps_end, eps_dec = 0.9, 0.1, 500 
+    eps = lambda steps: eps_end + (eps_start - eps_end) * np.exp(-1. * steps / eps_dec)
 
-    action_step = 4
-    last_action = None
-    
-    action_size     = 4
-    state_size = env.state().shape
-    layer_size = 256
-
-    # Q-Network
-    qnetwork_local = QNetwork(state_size, action_size,layer_size, n_step, seed, N).to(device)
-    optimizer = optim.Adam(qnetwork_local.parameters(), lr=LR)
-
+    # Instantiate networks, optimizer, loss and buffer
+    policy_net = QNetwork(len_state = in_channels, num_quant=2, num_actions=num_actions).to(device)
+    tau = torch.Tensor((2 * np.arange(policy_net.num_quant) + 1) / (2.0 * policy_net.num_quant)).view(1, -1)
     replay_start_size = 0
     if not target_off:
-        network_target = QNetwork(state_size, action_size,layer_size, n_step, seed, N).to(device)
-        network_target.load_state_dict(qnetwork_local.state_dict())
+        target_net = QNetwork(len_state=in_channels, num_quant=2, num_actions= num_actions).to(device)
+        target_net.load_state_dict(policy_net.state_dict())
 
     if not replay_off:
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    optimizer = optim.RMSprop(qnetwork_local.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
 
     # Set initial values
     e_init = 0
@@ -313,10 +316,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Load model and optimizer if load_path is not None
     if load_path is not None and isinstance(load_path, str):
         checkpoint = torch.load(load_path)
-        qnetwork_local.load_state_dict(checkpoint['policy_net_state_dict'])
+        policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
 
         if not target_off:
-            network_target.load_state_dict(checkpoint['target_net_state_dict'])
+            target_net.load_state_dict(checkpoint['target_net_state_dict'])
 
         if not replay_off:
             r_buffer = checkpoint['replay_buffer']
@@ -330,9 +333,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         frame_stamp_init = checkpoint['frame_stamp_per_run']
 
         # Set to training mode
-        qnetwork_local.train()
+        policy_net.train()
         if not target_off:
-            network_target.train()
+            target_net.train()
 
     # Data containers for performance measure and model related data
     data_return = data_return_init
@@ -350,12 +353,13 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Initialize the environment and start state
         env.reset()
-        s = get_state(env.state())
+        s = get_cont_state(env.name, env.continuous_state()) 
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
             # Generate data
-            s_prime, action, reward, is_terminated = world_dynamics(t, replay_start_size, num_actions, s, env, qnetwork_local)
-            
+            # action = policy_net.select_action(torch.Tensor([s]), eps(t))
+            s_prime, action, reward, is_terminated = world_dynamics(t, replay_start_size, num_actions, s, env, policy_net)
+
             sample = None
             if replay_off:
                 sample = [transition(s, s_prime, action, reward, is_terminated)]
@@ -371,14 +375,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    train(sample, qnetwork_local, network_target, optimizer)
+                    train(sample, policy_net, policy_net, optimizer, tau)
                 else:
                     policy_net_update_counter += 1
-                    train(sample, qnetwork_local, network_target, optimizer)
+                    train(sample, policy_net, target_net, optimizer, tau)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
-                network_target.load_state_dict(network_target.state_dict())
+                target_net.load_state_dict(policy_net.state_dict())
 
             G += reward.item()
 
@@ -410,8 +414,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         'episode': e,
                         'frame': t,
                         'policy_net_update_counter': policy_net_update_counter,
-                        'policy_net_state_dict': qnetwork_local.state_dict(),
-                        'target_net_state_dict': network_target.state_dict() if not target_off else [],
+                        'policy_net_state_dict': policy_net.state_dict(),
+                        'target_net_state_dict': target_net.state_dict() if not target_off else [],
                         'optimizer_state_dict': optimizer.state_dict(),
                         'avg_return': avg_return,
                         'return_per_run': data_return,
@@ -426,7 +430,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     torch.save({
         'returns': data_return,
         'frame_stamps': frame_stamp,
-        'policy_net_state_dict': qnetwork_local.state_dict()
+        'policy_net_state_dict': policy_net.state_dict()
     }, output_file_name + "_data_and_weights")
 
 
@@ -456,7 +460,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = Environment(args.game)
+    env = Velenvironment(args.game)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)

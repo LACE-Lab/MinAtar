@@ -13,9 +13,6 @@ import time
 from environment import Environment
 from velenvironment import Velenvironment
 import gym
-import gym_minatar
-import gym_pygame
-import gym_exploration
 
 
 def weight_init(layers):
@@ -39,7 +36,6 @@ class QR_DQN(nn.Module):
         x = torch.relu(self.head_1(input))
         x = torch.relu(self.ff_1(x))
         out = self.ff_2(x)
-        print(input.shape[0], self.N, self.action_size)
         return out.view(input.shape[0], self.N, self.action_size)
     
     def get_action(self,input):
@@ -190,7 +186,6 @@ class DQN_Agent():
             state = np.array(state)
 
             state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-            print(state)
             self.qnetwork_local.eval()
             with torch.no_grad():
                 action_values = self.qnetwork_local.get_action(state)
@@ -219,6 +214,7 @@ class DQN_Agent():
         """
         self.optimizer.zero_grad()
         states, actions, rewards, next_states, dones = experiences
+        # print(states)
         # Get max predicted Q values (for next states) from target model
         Q_targets_next = self.qnetwork_target(next_states).detach().cpu() #.max(2)[0].unsqueeze(1) #(batch_size, 1, N)
         action_indx = torch.argmax(Q_targets_next.mean(dim=1), dim=1, keepdim=True)
@@ -271,7 +267,7 @@ def eval_runs(eps, frame):
     """
     Makes an evaluation run with the current epsilon
     """
-    env = gym.make("Breakout-MinAtar-v1")
+    env = gym.make("CartPole-v0")
     reward_batch = []
     for i in range(5):
         state = env.reset()
@@ -308,6 +304,7 @@ def run(frames=1000, eps_fixed=False, eps_frames=1e6, min_eps=0.01):
     eps_start = 1
     i_episode = 1
     state = env.reset()
+    print(state)
     score = 0                  
     for frame in range(1, frames+1):
 
@@ -356,17 +353,12 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Using ", device)
 
-
-
-
     np.random.seed(seed)
-    env = gym.make("Breakout-MinAtar-v1")
+    env = gym.make("CartPole-v0")
 
     env.seed(seed)
     action_size     = env.action_space.n
     state_size = env.observation_space.shape
-    print(state_size)
-
     agent = DQN_Agent(state_size=state_size,    
                         action_size=action_size,
                         Network="DDQN",
