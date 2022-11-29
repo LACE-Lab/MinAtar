@@ -98,7 +98,8 @@ class QNetwork(pl.LightningModule, nn.Module):
             nn.Linear(int(hidden_dim), int(hidden_dim / 2)),
             nn.ReLU(),
             self.dropout,
-            nn.Linear(int(hidden_dim / 2), num_actions*hidden_num_quantile)
+            nn.Linear(int(hidden_dim / 2), num_actions*hidden_num_quantile),
+            self.dropout
         )
 
     def forward(self, s, debug=False):
