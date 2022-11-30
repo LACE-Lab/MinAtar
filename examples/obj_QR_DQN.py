@@ -67,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=512, hidden_num_quantile=32):
+                 hidden_dim=1024, hidden_num_quantile=32):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -81,7 +81,10 @@ class QNetwork(pl.LightningModule, nn.Module):
 
         # Embedding layers
         self.encoder = nn.Sequential(
-            nn.Linear(in_features=in_channels, out_features=int(hidden_dim/4)),
+            nn.Linear(in_features=in_channels, out_features=int(hidden_dim/8)),
+            nn.ReLU(),
+            self.dropout,
+            nn.Linear(int(hidden_dim/8), int(hidden_dim/4)),
             nn.ReLU(),
             self.dropout,
             nn.Linear(int(hidden_dim/4), int(hidden_dim/2)),
@@ -98,7 +101,11 @@ class QNetwork(pl.LightningModule, nn.Module):
             nn.Linear(int(hidden_dim), int(hidden_dim / 2)),
             nn.ReLU(),
             self.dropout,
-            nn.Linear(int(hidden_dim / 2), num_actions*hidden_num_quantile),
+            nn.Linear(int(hidden_dim / 2), int(hidden_dim / 4)),
+            nn.ReLU(),
+            self.dropout,
+            nn.Linear(int(hidden_dim / 4), num_actions * hidden_num_quantile),
+            nn.ReLU(),
             self.dropout
         )
 
