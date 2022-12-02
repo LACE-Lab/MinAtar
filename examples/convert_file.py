@@ -2,7 +2,7 @@ import pstats
 
 games = ["breakout","test","test2"]
 suffixes1 = ["qr_dqn"]
-suffixes2 = ["0.00001", "0.00005", "0.0001", "16_0.00001","16_00005","16_0001"]
+suffixes2 = ["0.00001", "0.00005", "0.0001", "16_0.00001","16_0.00005","16_0.0001"]
 for game in games:
     for suffix1 in suffixes1:
         for suffix2 in suffixes2:
