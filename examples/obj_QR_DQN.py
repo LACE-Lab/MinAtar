@@ -38,7 +38,7 @@ from velenvironment import Velenvironment
 # Constants
 #
 ################################################################################################################
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 REPLAY_BUFFER_SIZE = 10000
 TARGET_NETWORK_UPDATE_FREQ = 100
 TRAINING_FREQ = 10
@@ -67,7 +67,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class QNetwork(pl.LightningModule, nn.Module):
     def __init__(self,
                  num_actions, in_channels,
-                 hidden_dim=2048, hidden_num_quantile=32):
+                 hidden_dim=512, hidden_num_quantile=32):
         """
         Available variance convergence types: ["separate", "hetero"]
         """
@@ -101,12 +101,7 @@ class QNetwork(pl.LightningModule, nn.Module):
             nn.Linear(int(hidden_dim), int(hidden_dim / 2)),
             nn.ReLU(),
             self.dropout,
-            nn.Linear(int(hidden_dim / 2), int(hidden_dim / 4)),
-            nn.ReLU(),
-            self.dropout,
-            nn.Linear(int(hidden_dim / 4), num_actions * hidden_num_quantile),
-            nn.ReLU(),
-            self.dropout
+            nn.Linear(int(hidden_dim / 2), num_actions * hidden_num_quantile)
         )
 
     def forward(self, s, debug=False):
