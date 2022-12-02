@@ -5,8 +5,8 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "breakout"
--n /research/erin/zoshao/results/2022_11_4_breakout_dqn.png
+-l "test2"
+-n /research/erin/zoshao/results/2022_12_02_test2_qr_dqn.png
 -g "0.00001" "0.0001"
 -a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.00001.results
 -a /research/erin/zoshao/results/2022_10_18_breakout_dqn_0.0001.results
