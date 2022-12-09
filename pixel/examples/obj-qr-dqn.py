@@ -219,6 +219,7 @@ def world_dynamics(t, replay_start_size, num_actions, s, env, policy_net):
             # view(1,1) shapes the tensor to be the right form (e.g. tensor([[0]])) without copying the
             # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
             with torch.no_grad():
+                action_values =  policy_net.get_action(s)
                 action = torch.tensor(np.argmax(action_values.cpu().data.numpy())).unsqueeze(0).unsqueeze(0)
 
     # Act according to the action and observe the transition and reward
