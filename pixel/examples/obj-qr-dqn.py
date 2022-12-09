@@ -30,7 +30,7 @@ import numpy as np
 import random, numpy, argparse, logging, os
 
 from collections import namedtuple
-from minatar import Environment
+from environment import Environment
 
 ################################################################################################################
 # Constants
