@@ -1,8 +1,7 @@
-# Changes in this fork:
-- Removed GUI module to reduce number of dependencies
-- Added save\_state and load\_state methods
-- Added continuous_state methods
-- Fixed a rare bug in seaquest (used to crash when a bullet and at least two subs occupied the same location)
+# Changes in this branch:
+- Constructed an object-level neural network
+- Made this neural network compatible with DQN and AC Lambda algorithms
+- Working on adapting distributional RL algorithm QR DQN
 
 # MinAtar
 MinAtar is a testbed for AI agents which implements miniaturized versions of several Atari 2600 games. MinAtar is inspired by the Arcade Learning Environment (Bellemare et. al. 2013) but simplifies the games to make experimentation with the environments more accessible and efficient. Currently, MinAtar provides analogues to five Atari games which play out on a 10x10 grid. The environments provide a 10x10xn state representation, where each of the n channels correspond to a game-specific object, such as ball, paddle and brick in the game Breakout.
@@ -51,65 +50,6 @@ Avg Return: 0.5+/-0.023194827009486406
 ```
 
 The examples/random_play.py is a simple example to demonstrate how to use the module. `breakout` in the previous command can be replaced by one of the five available games: asterix, breakout, freeway, seaquest and space_invaders. See the Games section below for details of each game.
-
-To play a game as a human, run examples/human_play.py as follows:
-
-```bash
-python human_play.py -g <game>
-```
-Use the arrow keys to move and space bar to fire. Also, press q to quit and r to reset.
-
-Also included in the examples directory are example implementations of DQN (dqn.py) and online actor-critic with eligibility traces (AC_lambda.py).
-
-## Visualizing the Environments
-We provide 2 ways to visualize a MinAtar environment.
-### Using Environment.display_state()
-The Environment class includes a simple visualizer using matplotlib in the display_state function. To use this simply call:
-```python
-env.display_state(50)
-```
-where env is an instance of MinAtar.Environment. The argument is the number of milliseconds to display the state before continuing execution. To close the resulting display window call:
-```python
-env.close_display()
-```
-This is the simplest way to visualize the environments, unless you need to handle user input during execution in which case you could use the provided GUI class.
-
-
-### Using GUI class
-We also include a slightly more complex GUI to visualize the environments and optionally handle user input. This GUI is used in examples/human_play.py to play as a human and examples/agent_play.py to visualize the performance of trained agents. To use the GUI you can import it in your code with:
-```python
-from minatar import GUI
-```
-Initialize an instance of the GUI class by providing a name for the window, and the integer number of input channels for the minatar environment to be visualized. For example:
-```python
-GUI(env.game_name(), env.n_channels)
-
-```
-where env is an instance of minatar.Environment. The recommended way to use the GUI for visualizing an environment is to include all you're agent-environment interaction code in a function that looks something like this:
-```python
-def func():
-    gui.display_state(env.state())
-    #One step of agent-environment interaction here
-    gui.update(50, func)
-```
-The first argument to gui.update is the time to hold the current frame before continuing. The second argument specifies the function to call after that time has elapsed. In the example above the call to update simply calls func again, effectively continuing the agent-environment interaction loop. Note that this is not a recursive call, as the call to func in update is made in a new thread, while the execution of the current thread continues.
-
-To begin the execution you can use:
-```python
-gui.update(0, func)
-gui.run()
-```
-This will enter the agent environment interaction loop and then run the GUI thread, gui.run() will block until gui.quit() is called. To handle user input you can use gui.overwrite_key_handle(on_key_event, on_release_event). The arguments are functions to be called whenever a key is pressed, and released respectively. For an example of how to do this see examples/human_play.py.
-
-## Support for Other Languages
-
-- [Julia](https://github.com/mkschleg/MinAtar.jl/blob/master/README.md)
-
-## Results
-The following plots display results for DQN (Mnih et al., 2015) and actor-critic (AC) with eligibility traces. Our DQN agent uses a significantly smaller network compared to that of Mnih et al., 2015. We display results for DQN with and without experience reply. Our AC agent uses a similar architecture to DQN, but does not use experience replay. We display results for two values of the trace decay parameter, 0.8 and 0.0.  Each curve is the average of 30 independent runs with different random seeds. The top plots display the sensitivity of final performance to the step-size parameter, while the bottom plots display the average return during training as a function of training frames. For further information, see the paper on MinAtar available [here](https://arxiv.org/abs/1903.03176).
-
-<img align="center" src="img/sensitivity_curves.gif" width=800>
-<img align="center" src="img/learning_curves.gif" width=800>
 
 ## Games
 So far we have implemented analogues to five Atari games in MinAtar as follows. For each game, we include a link to a video of a trained DQN agent playing.
