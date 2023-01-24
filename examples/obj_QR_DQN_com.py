@@ -52,6 +52,7 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1.0
+WEIGHT_DECAY = 1e-5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -391,7 +392,7 @@ def train(sample, policy_net, target_net, optimizer):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, weight_decay = WEIGHT_DECAY):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     length = len(env.continuous_state()[0][0])
@@ -411,7 +412,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         replay_start_size = REPLAY_START_SIZE
 
     # optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    optimizer = torch.optim.Adam(policy_net.parameters(), lr=step_size, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(policy_net.parameters(), lr=step_size, weight_decay=weight_decay)
 
     # Set initial values
     e_init = 0
@@ -554,6 +555,7 @@ def main():
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
+    parser.add_argument("--weightdecay", "-w", type=float, default=WEIGHT_DECAY)
     args = parser.parse_args()
 
     if args.verbose:
@@ -574,7 +576,7 @@ def main():
     env = Velenvironment(args.game)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.weightdecay)
 
 
 if __name__ == '__main__':
