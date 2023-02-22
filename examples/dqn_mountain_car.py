@@ -228,7 +228,7 @@ def train(sample, policy_net, target_net, optimizer):
     
 def choose_action(state, policy_net, epsilon, n_actions):
     # print(state)
-    x = torch.unsqueeze(torch.FloatTensor(state), 0)
+    x = torch.unsqueeze(torch.FloatTensor(state).to(device), 0)
 
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
