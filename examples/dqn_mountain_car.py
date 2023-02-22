@@ -403,7 +403,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
             print(env.step(action.item()))
             if cpu == False:
-                s_cont_prime, reward, is_terminated, _ = env.step(action.item())[0]
+                s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
                 s_cont_prime = s_cont_prime[0]
             else:
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
