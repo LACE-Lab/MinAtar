@@ -45,9 +45,9 @@ TARGET_NETWORK_UPDATE_FREQ = 1000
 TRAINING_FREQ = 1
 NUM_FRAMES = 5000000
 FIRST_N_FRAMES = 100000
-REPLAY_START_SIZE = 500
+REPLAY_START_SIZE = 100
 END_EPSILON = 0.1
-STEP_SIZE = 0.0001
+STEP_SIZE = 0.5
 GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
@@ -404,9 +404,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
         # s_cont = torch.tensor(env.reset(), device=device)
         is_terminated = False
-        num_frame = 0
-        while (not is_terminated) and num_frame < 200:
-            if e % 500 == 0:
+        while (not is_terminated) and t < NUM_FRAMES:
+            
+            if t % TRAINING_FREQ == 100:
                 env.render()
             # Generate data
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
@@ -416,13 +416,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
             s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-            
-            if s_cont_prime[1] > s_cont[1] and s_cont_prime[1] > 0 and s_cont[1] > 0:
-                reward += 15
-            elif s_cont_prime[1] < s_cont[1] and s_cont_prime[1] <= 0 and s_cont[1] <= 0:
-                reward += 15
-            
-            reward -= 10
+            reward = -(s_cont_prime[0]+s_cont_prime[2])
 
             sample = None
             if replay_off:
@@ -456,7 +450,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             # Continue the process
             s_cont = s_cont_prime
-            num_frame += 1
             # print(is_terminated, t)
 
         # Increment the episodes
@@ -468,7 +461,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 500 == 0:
+        if e % 1000 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
@@ -528,7 +521,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = gym.make("MountainCar-v0")
+    env = gym.make("Acrobot-v1")
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
