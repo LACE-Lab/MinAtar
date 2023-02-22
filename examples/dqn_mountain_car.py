@@ -178,6 +178,7 @@ def train(sample, policy_net, target_net, optimizer):
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
 
     states = torch.stack(batch_samples.state, 0)
+    print(states)
     next_states = torch.stack(batch_samples.next_state, 0)
 
     actions = torch.cat(batch_samples.action, 0)
@@ -401,7 +402,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # env.render()
             # Generate data
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
-            print(env.step(action.item()))
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
                 s_cont_prime = s_cont_prime[0]
@@ -409,7 +409,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
                 s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-            print(s_cont_prime)
 
             sample = None
             if replay_off:
