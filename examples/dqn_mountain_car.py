@@ -387,6 +387,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
+        print(env.reset())
+        print(type(env.reset()))
         s_cont = torch.tensor(env.reset(), device=device)
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
