@@ -336,8 +336,6 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
 
             G += reward.item()
 
-            t += 1
-
             # Continue the process
             s_last = s
             r_last = reward

@@ -29,6 +29,7 @@ import gym
 import random, numpy, argparse, logging, os
 
 import numpy as np
+from tqdm import tqdm
 
 from collections import namedtuple
 from environment import Environment
@@ -381,7 +382,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     e = e_init
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
-    while t < NUM_FRAMES:
+    for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
 
@@ -436,8 +437,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 target_net.load_state_dict(policy_net.state_dict())
 
             G += reward
-
-            t += 1
 
             # Continue the process
             s_cont = s_cont_prime

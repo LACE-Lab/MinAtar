@@ -453,8 +453,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             G += reward.item()
 
-            t += 1
-
             # Continue the process
             s_cont = s_cont_prime
 
