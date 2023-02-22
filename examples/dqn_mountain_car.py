@@ -387,7 +387,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        s_cont = torch.tensor(env.reset()).to(device)
+        s_cont = torch.tensor(env.reset(), device=device)
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
             
@@ -396,7 +396,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
             # print(action.item())
             s_cont_prime, reward, is_terminated, _ = env.step(action.item())
-            s_cont_prime = torch.tensor(s_cont_prime).to(device)
+            s_cont_prime = torch.tensor(s_cont_prime, device=device)
 
             sample = None
             if replay_off:
