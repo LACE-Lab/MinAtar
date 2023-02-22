@@ -183,9 +183,9 @@ def train(sample, policy_net, target_net, optimizer):
     actions = torch.cat(batch_samples.action, 0)
     actions = actions.reshape(BATCH_SIZE, 1)
     
-    rewards = torch.Tensor(batch_samples.reward)
+    rewards = torch.tensor(batch_samples.reward).to(device)
     rewards = rewards.reshape(BATCH_SIZE, 1)
-    is_terminal = torch.Tensor(batch_samples.is_terminal)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device)
     is_terminal = is_terminal.reshape(BATCH_SIZE, 1)
     
     # print(states, next_states, actions, rewards, is_terminal)
@@ -387,7 +387,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        s_cont = torch.Tensor(env.reset())
+        s_cont = torch.rensor(env.reset()).to(device)
         is_terminated = False
         while(not is_terminated) and t < NUM_FRAMES:
             
@@ -396,7 +396,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
             # print(action.item())
             s_cont_prime, reward, is_terminated, _ = env.step(action.item())
-            s_cont_prime = torch.Tensor(s_cont_prime)
+            s_cont_prime = torch.tensor(s_cont_prime).to(device)
 
             sample = None
             if replay_off:
