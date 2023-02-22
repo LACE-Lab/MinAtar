@@ -396,6 +396,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
             # print(action.item())
             s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+            s_cont_prime = torch.Tensor(s_cont_prime)
 
             sample = None
             if replay_off:
@@ -441,7 +442,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 10 == 0:
+        if e % 1000 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
