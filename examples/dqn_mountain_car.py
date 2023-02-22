@@ -387,7 +387,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
+        cpu = True
+        
         if type(env.reset()) != numpy.ndarray:
+            cpu = False
             s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         else:
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
@@ -399,9 +402,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # Generate data
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
             # print(action.item())
-            s_cont_prime, reward, is_terminated, _ = env.step(action.item())
-            if type(s_cont_prime) != numpy.ndarray:
+            if cpu == False:
+                s_cont_prime, reward, is_terminated, _ = env.step(action.item())[0]
                 s_cont_prime = s_cont_prime[0]
+            else:
+                s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+                s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
             print(s_cont_prime)
 
