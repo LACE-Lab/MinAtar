@@ -55,7 +55,8 @@ GAMMA = 0.99
 EPSILON = 1.0
 H = 10 # rollout constant
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
 ################################################################################################################
