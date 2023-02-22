@@ -233,13 +233,16 @@ def train(sample, policy_net, target_net, optimizer):
     optimizer.step()
     
     
-def choose_action(state, policy_net, epsilon, n_actions):
+def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
     x = state.to(device).clone().detach().unsqueeze(0)
-
+    epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
+        else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
+    
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
         action = torch.tensor([random.randint(0, n_actions-1)]).to(device)
+
     else: # greedy
         actions_value = policy_net(x) # score of actions
         action = torch.max(actions_value, 1)[1].data.numpy() # pick the highest one
@@ -409,7 +412,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             if e % 500 == 0:
                 env.render()
             # Generate data
-            action = choose_action(s_cont, policy_net, EPSILON, num_actions)
+            action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
+            
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
             else:
