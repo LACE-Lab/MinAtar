@@ -176,9 +176,7 @@ def train(sample, policy_net, target_net, optimizer):
 
     # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
-    print(batch_samples.state)
     states = torch.vstack((batch_samples.state))
-    print(states)
     next_states = torch.vstack((batch_samples.next_state))
 
     actions = torch.cat(batch_samples.action, 0)
