@@ -41,10 +41,10 @@ from velenvironment import Velenvironment
 ################################################################################################################
 BATCH_SIZE = 32
 REPLAY_BUFFER_SIZE = 100000
-TARGET_NETWORK_UPDATE_FREQ = 1000
+TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 5000000
-FIRST_N_FRAMES = 100000
+FIRST_N_FRAMES = 1000
 REPLAY_START_SIZE = 500
 END_EPSILON = 0.1
 STEP_SIZE = 0.0001
@@ -52,7 +52,7 @@ GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
-EPSILON = 0.1
+EPSILON = 1
 H = 10 # rollout constant
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -421,12 +421,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
             
-            if s_cont_prime[1] > s_cont[1] and s_cont_prime[1] > 0 and s_cont[1] > 0:
-                reward += 15
-            elif s_cont_prime[1] < s_cont[1] and s_cont_prime[1] <= 0 and s_cont[1] <= 0:
-                reward += 15
+            # if s_cont_prime[1] > s_cont[1] and s_cont_prime[1] > 0 and s_cont[1] > 0:
+            #     reward += 15
+            # elif s_cont_prime[1] < s_cont[1] and s_cont_prime[1] <= 0 and s_cont[1] <= 0:
+            #     reward += 15
             
-            reward -= 10
+            # reward -= 20
 
             sample = None
             if replay_off:
@@ -532,7 +532,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = gym.make("MountainCar-v0")
+    env = gym.make("CartPole-v1")
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)

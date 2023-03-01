@@ -41,11 +41,11 @@ from velenvironment import Velenvironment
 ################################################################################################################
 BATCH_SIZE = 32
 REPLAY_BUFFER_SIZE = 100000
-TARGET_NETWORK_UPDATE_FREQ = 1000
+TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 5000000
-FIRST_N_FRAMES = 100000
-REPLAY_START_SIZE = 100
+FIRST_N_FRAMES = 1000
+REPLAY_START_SIZE = 500
 END_EPSILON = 0.1
 STEP_SIZE = 0.5
 GRAD_MOMENTUM = 0.95
@@ -406,7 +406,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         is_terminated = False
         while (not is_terminated) and t < NUM_FRAMES:
             
-            if t % TRAINING_FREQ == 100:
+            if e % 500 == 0:
                 env.render()
             # Generate data
             action = choose_action(s_cont, policy_net, EPSILON, num_actions)
@@ -416,7 +416,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
             s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-            reward = -(s_cont_prime[0]+s_cont_prime[2])
 
             sample = None
             if replay_off:
