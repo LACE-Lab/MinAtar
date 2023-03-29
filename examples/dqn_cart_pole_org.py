@@ -32,6 +32,8 @@ import numpy as np
 from tqdm import tqdm
 
 from collections import namedtuple
+from environment import Environment
+from velenvironment import Velenvironment
 
 ################################################################################################################
 # Constants
@@ -55,6 +57,7 @@ H = 10 # rollout constant
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
+
 
 ################################################################################################################
 # class QNetwork
@@ -254,78 +257,78 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
-def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+# Define a function for computing the rollout
+def trainWithRollout(sample, env, policy_net, target_net, optimizer, H):
     # unzip the batch samples and turn components into tensors
-    env = gym.make("CartPole-v1")
-    env.reset()
-
+    initial_state = env.state
+    
     batch_samples = transition(*zip(*sample))
 
-    states = torch.vstack((batch_samples.state)).to(device)
-    next_states = torch.vstack((batch_samples.next_state)).to(device)
-
+    states = torch.vstack((batch_samples.state))
+    next_states = torch.vstack((batch_samples.next_state))
+    
     actions = torch.cat(batch_samples.action, 0)
-    actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
-
-    rewards = torch.tensor(batch_samples.reward).to(device).reshape(BATCH_SIZE, 1)
-    is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1)
-
+    actions = actions.reshape(BATCH_SIZE, 1)
+    actions = actions.type(torch.int64)
+    
+    rewards = torch.tensor(batch_samples.reward).to(device)
+    rewards = rewards.reshape(BATCH_SIZE, 1)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device)
+    is_terminal = is_terminal.reshape(BATCH_SIZE, 1)
+    
+    # Perform the rollout for H steps or until done
     Q_s_a = policy_net(states).gather(1, actions)
 
     avg_list = torch.empty((0))
 
     for i in range(BATCH_SIZE):
-        env.reset()
-        initial_state = tuple(batch_samples.state[i].numpy())
-        env.state = initial_state
-        
         state = states[i]
+        action = actions[i]
+        reward = rewards[i]
         next_state = next_states[i]
         done = is_terminal[i]
-
+        
         reward_list = torch.zeros(H).to(device)
         value_list = torch.zeros(H).to(device)
-        
-        reward_list[0] = rewards[i]
+
         value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-        
-        env.state = tuple(batch_samples.next_state[i].numpy())
+        reward_list[0] = reward.item()
+
+        state = next_state
 
         for h in range(1, H):
-            if not done:
-                action = choose_greedy_action(state, policy_net)
-                next_state, reward, done, _ = env.step(action.item())
-                next_state = torch.Tensor(next_state).to(device)
-
-                value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
-                reward_list[h] = reward
-
-                state = torch.Tensor(next_state).to(device)
-            else:
+            if done:
                 break
 
-        # Create a tensor with indices for the power operation
-        indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
-        indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+            action = choose_greedy_action(state, policy_net)
+            next_state, reward, done, _ = env.step(action.item())
+            next_state = torch.Tensor(next_state)
 
-        # Compute the gamma powers
-        gamma_powers = GAMMA ** indices
-        gamma_powers_val = GAMMA ** indices_val
+            value_list.append(target_net(next_state).max(0)[0].item())
+            reward_list.append(reward)
+
+            state = torch.Tensor(next_state)
 
         # Calculate the discounted rewards
-        running_reward = (gamma_powers * reward_list).cumsum(dim=1)
-        discounted_rewards = running_reward + gamma_powers_val * value_list
+        discounted_rewards = []
+        running_reward = 0
+        avg = 0
+        for j in range(len(reward_list)):
+            running_reward += GAMMA ** j * reward_list[j]
+            discounted_reward = running_reward + GAMMA ** (j+1) * value_list[j]
+            discounted_rewards.append(discounted_reward)
+            avg += discounted_reward
 
-        # Calculate the average
-        avg = discounted_rewards.mean()
-        avg = torch.Tensor([avg.item()]).detach()
+        print(discounted_rewards)
+        avg /= len(reward_list)
+        avg = torch.Tensor([avg]).detach()
 
         avg_list = torch.cat((avg_list, avg)).detach()
-
-    avg_list.requires_grad = True
+    
     avg_list = avg_list.reshape(BATCH_SIZE, 1)
+    avg_list.requires_grad = True
 
-    loss = f.mse_loss(Q_s_a, avg_list)
+    loss = f.smooth_l1_loss(Q_s_a, avg_list)
 
     optimizer.zero_grad()
     loss.backward()
@@ -422,12 +425,13 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         #     s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         # else:
         #     s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-
+        
+        env.reset()
         s_cont = torch.tensor(env.reset(), device=device)
         is_terminated = False
         
         while (not is_terminated):
-            if e % 100 == 0:
+            if e % 500 == 0:
                 env.render()
             
             # Generate data
@@ -440,7 +444,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
             else:
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
-
+            
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 
             sample = None
@@ -458,11 +462,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    trainWithRollout(sample, policy_net, policy_net, optimizer, H)
+                    trainWithRollout(sample, env, policy_net, policy_net, optimizer, H)
                     # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample, policy_net, target_net, optimizer, H)
+                    trainWithRollout(sample, env, policy_net, target_net, optimizer, H)
                     # train(sample, policy_net, target_net, optimizer)
 
             # Update the target network only after some number of policy network updates
@@ -483,7 +487,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 100 == 0:
+        if e % 500 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
