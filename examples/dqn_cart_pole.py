@@ -53,8 +53,8 @@ GAMMA = 0.99
 EPSILON = 1
 H = 10 # rollout constant
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 ################################################################################################################
 # class QNetwork
@@ -422,10 +422,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         else:
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-
-        print(env.reset())
+        
         s_cont = torch.tensor(env.reset(), device=device)
-        print(s_cont)
         is_terminated = False
         
         while (not is_terminated):
