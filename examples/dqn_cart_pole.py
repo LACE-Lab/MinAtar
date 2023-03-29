@@ -32,6 +32,7 @@ import numpy as np
 from tqdm import tqdm
 
 from collections import namedtuple
+from customCartPole import CustomCartPole
 
 ################################################################################################################
 # Constants
@@ -256,7 +257,7 @@ def choose_greedy_action(state, policy_net):
 
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     # unzip the batch samples and turn components into tensors
-    env = gym.make("CartPole-v1")
+    env = CustomCartPole()
     env.reset()
 
     batch_samples = transition(*zip(*sample))
@@ -275,16 +276,10 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     avg_list = torch.empty((0))
 
     for i in range(BATCH_SIZE):
-        cpu = True
-        
-        if type(env.reset()) != numpy.ndarray:
-            cpu = False
-            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
-        else:
-            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+        cpu = False
 
-        initial_state = tuple(batch_samples.state[i].numpy())
-        env.state = initial_state
+        initial_state = batch_samples.state[i].numpy()
+        env.set_state(initial_state)
         
         state = states[i]
         next_state = next_states[i]
@@ -296,7 +291,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         reward_list[0] = rewards[i]
         value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
         
-        env.state = tuple(batch_samples.next_state[i].numpy())
+        env.set_state(batch_samples.next_state[i].numpy())
 
         for h in range(1, H):
             if not done:
@@ -306,12 +301,14 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
                     next_state, reward, done, _, _ = env.step(action.item())
                 else:
                     next_state, reward, done, _ = env.step(action.item())
+                
+                env.set_state(next_state)
                 next_state = torch.Tensor(next_state).to(device)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                 reward_list[h] = reward
 
-                state = torch.Tensor(next_state).to(device)
+                state = next_state
             else:
                 break
 
@@ -445,7 +442,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
             
             action = choose_action(epsilon, s_cont, policy_net, num_actions)
-            
+
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
             else:
