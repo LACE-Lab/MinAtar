@@ -275,7 +275,14 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     avg_list = torch.empty((0))
 
     for i in range(BATCH_SIZE):
-        env.reset()
+        cpu = True
+        
+        if type(env.reset()) != numpy.ndarray:
+            cpu = False
+            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+        else:
+            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+
         initial_state = tuple(batch_samples.state[i].numpy())
         env.state = initial_state
         
@@ -294,7 +301,11 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         for h in range(1, H):
             if not done:
                 action = choose_greedy_action(state, policy_net)
-                next_state, reward, done, _ = env.step(action.item())
+                
+                if cpu == False:
+                    next_state, reward, done, _, _ = env.step(action.item())
+                else:
+                    next_state, reward, done, _ = env.step(action.item())
                 next_state = torch.Tensor(next_state).to(device)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
