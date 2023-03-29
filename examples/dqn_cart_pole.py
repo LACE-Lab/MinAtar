@@ -423,6 +423,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         else:
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
 
+        print(env.reset())
         s_cont = torch.tensor(env.reset(), device=device)
         print(s_cont)
         is_terminated = False
