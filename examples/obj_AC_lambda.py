@@ -335,6 +335,8 @@ def AC_lambda(env, output_file_name, store_intermediate_result=False, load_path=
             train(sample, traces, grads, MSG, network, alpha, t)
 
             G += reward.item()
+            
+            t += 1
 
             # Continue the process
             s_last = s

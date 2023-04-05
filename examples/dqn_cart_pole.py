@@ -43,8 +43,8 @@ REPLAY_BUFFER_SIZE = 100000
 TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 5000000
-FIRST_N_FRAMES = 1000
-REPLAY_START_SIZE = 500
+FIRST_N_FRAMES = 100
+REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.0001
 GRAD_MOMENTUM = 0.95
@@ -140,27 +140,6 @@ class replay_buffer:
 
     def sample(self, batch_size):
         return random.sample(self.buffer, batch_size)
-
-
-################################################################################################################
-# get_state
-#
-# Converts the state given by the environment to a tensor of size (in_channel, 10, 10), and then
-# unsqueeze to expand along the 0th dimension so the function returns a tensor of size (1, in_channel, 10, 10).
-#
-# Input:
-#   s: current state as numpy array
-#
-# Output: current state as tensor, permuted to match expected dimensions
-#
-################################################################################################################
-def get_state(s):
-    return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
-
-def get_cont_state(cont_s, max_obj=40):
-    cont_s = np.array(cont_s)
-    return torch.tensor(cont_s, device=device).unsqueeze(0).unsqueeze(0).float()
-
 
 ################################################################################################################
 # train
@@ -477,6 +456,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 target_net.load_state_dict(policy_net.state_dict())
 
             G += reward
+            
+            t += 1
 
             # Continue the process
             s_cont = s_cont_prime

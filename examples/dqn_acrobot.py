@@ -446,6 +446,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 target_net.load_state_dict(policy_net.state_dict())
 
             G += reward
+            
+            t += 1
 
             # Continue the process
             s_cont = s_cont_prime

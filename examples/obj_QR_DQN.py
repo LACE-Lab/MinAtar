@@ -329,6 +329,7 @@ def train(sample, policy_net, target_net, optimizer):
 
     loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
     loss = loss.mean()
+    
     # print(loss)
     # Minimize the loss
     loss.backward()
@@ -461,6 +462,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 target_net.load_state_dict(policy_net.state_dict())
 
             G += reward.item()
+            
+            t += 1
 
             # Continue the process
             s_cont = s_cont_prime

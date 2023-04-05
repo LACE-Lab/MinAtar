@@ -21,39 +21,41 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
-import torch.optim as optim
 import pytorch_lightning as pl
-import os
+import torch.optim as optim
 import time
+import gym
 
-import random, argparse, logging, os
+import random, numpy, argparse, logging, os
+
 import numpy as np
 from tqdm import tqdm
 
 from collections import namedtuple
-from environment import Environment
-from velenvironment import Velenvironment
+from customCartPole import CustomCartPole
 
 ################################################################################################################
 # Constants
 #
 ################################################################################################################
 BATCH_SIZE = 32
-REPLAY_BUFFER_SIZE = 10000
-TARGET_NETWORK_UPDATE_FREQ = 100
-TRAINING_FREQ = 10
+REPLAY_BUFFER_SIZE = 100000
+TARGET_NETWORK_UPDATE_FREQ = 500
+TRAINING_FREQ = 1
 NUM_FRAMES = 5000000
-FIRST_N_FRAMES = 10000
+FIRST_N_FRAMES = 1000
 REPLAY_START_SIZE = 500
 END_EPSILON = 0.1
-STEP_SIZE = 0.000025
+STEP_SIZE = 0.0001
 GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
-EPSILON = 1.0
+EPSILON = 1
+H = 3 # rollout constant
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 ################################################################################################################
 # class QNetwork
@@ -65,70 +67,35 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #
 ################################################################################################################
 class QNetwork(pl.LightningModule, nn.Module):
-    def __init__(self,
-                 num_actions, in_channels,
-                 hidden_dim=512):
-        """
-        Available variance convergence types: ["separate", "hetero"]
-        """
+    def __init__(self, in_channels, num_actions, hidden_dim = 100, hidden_num_quantile = 32):
+
         super().__init__()
         super(QNetwork, self).__init__()
         self.save_hyperparameters()
-
         self.dropout = nn.Dropout(p=0.2)
+        self.hidden_num_quantile = hidden_num_quantile
+        self.num_actions = num_actions
 
-        # Embedding layers
-        self.encoder = nn.Sequential(
-            nn.Linear(in_features=in_channels, out_features=int(hidden_dim/4)),
-            nn.ReLU(),
-            self.dropout,
-            nn.Linear(int(hidden_dim/4), int(hidden_dim/2)),
-            nn.ReLU(),
-            self.dropout,
-            nn.Linear(int(hidden_dim/2), hidden_dim),
-            nn.ReLU(),
-            self.dropout
+        # self.fc_hidden = nn.Linear(in_features=in_channels, out_features=hidden_dim)
+        
+        self.fc_hidden = nn.Sequential(
+            nn.Linear(in_features=in_channels, out_features=hidden_dim),
+            nn.ReLU()
         )
 
-        # Output heads
+        # Output layer:
+        self.output =nn.Linear(int(hidden_dim), num_actions * hidden_num_quantile)
 
-        self.decoder = nn.Sequential(
-            nn.Linear(int(hidden_dim), int(hidden_dim / 2)),
-            nn.ReLU(),
-            self.dropout,
-            nn.Linear(int(hidden_dim / 2), num_actions)
-        )
+    # As per implementation instructions according to pytorch, the forward function should be overwritten by all
+    # subclasses
+    def forward(self, x):
+        # print(x)
 
-    def forward(self, s, debug=False):
-        """
-        Input size: [BATCH_SIZE, N, M]
-        """
-        # batch size
-        # bs = emb_objs.shape[1]
+        # Rectified output from the final hidden layer
+        x = self.fc_hidden(x)
 
-        # Calculate the object embedding
-        emb_objs = self.encoder(s)
-        emb_objs_vector, _ = torch.max(emb_objs, dim=1)
-
-        reward = self.decoder(emb_objs_vector)
-        # reward = self.decoder(emb_objs)
-        # print("rewards: ", reward)
-        # finally project transformer outputs to class labels and bounding boxes
-        return reward
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
-
-    def training_step(self, train_batch, batch_idx):
-        loss = self.loss_fn(train_batch)
-        self.log('train_loss', loss)
-        return loss
-
-    def validation_step(self, val_batch, batch_idx):
-        loss = self.loss_fn(val_batch)
-        self.log('train_loss', loss)
-
+        # Returns the output from the fully-connected linear layer
+        return self.output(x).view(x.shape[0], self.hidden_num_quantile, self.num_actions)
 
 ###########################################################################################################
 # class replay_buffer
@@ -159,106 +126,6 @@ class replay_buffer:
         return random.sample(self.buffer, batch_size)
 
 ################################################################################################################
-# get_state
-#
-# Converts the state given by the environment to a tensor of size (in_channel, 10, 10), and then
-# unsqueeze to expand along the 0th dimension so the function returns a tensor of size (1, in_channel, 10, 10).
-#
-# Input:
-#   s: current state as numpy array
-#
-# Output: current state as tensor, permuted to match expected dimensions
-#
-################################################################################################################
-def get_state(s):
-    s = np.array(s)
-    return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
-
-def get_cont_state(game, cont_s, max_obj=40):
-    """
-    Return the continuous state of the environment as a torch array.
-    :param cont_s: Continuous state.
-    :return: Torch tensor of shape [M*(2+N)]. M is the number of objects. N is the number of categories.
-    """
-    if game == "space_invaders":
-        max_obj = 60
-    N = len(cont_s)
-    obj_len = len(cont_s[0][0])
-    
-    # Collect all the states
-    cont_state = []
-    for i in range(N):
-        for obj in cont_s[i]:
-            cont_state.append(torch.tensor(obj, device=device))
-
-    # Convert into one torch tensor
-    cont_state = torch.vstack(cont_state)
-
-    # Zero pad to the maximum allowed dimension
-    size_pad = max_obj - cont_state.shape[0]
-    pad = torch.zeros((size_pad, obj_len), device=device)
-    cont_state = torch.cat([cont_state, pad])
-
-    # Unsqueeze for the batch dimension
-    cont_state = cont_state.unsqueeze(0)
-    
-    # print(cont_state)
-    return cont_state
-
-    # Version for one-hot encoding
-    # cont_s = np.array(cont_s)
-    # return torch.tensor(cont_s, device=device).unsqueeze(0).unsqueeze(0).float()
-
-################################################################################################################
-# world_dynamics
-#
-# It generates the next state and reward after taking an action according to the behavior policy.  The behavior
-# policy is epsilon greedy: epsilon probability of selecting a random action and 1 - epsilon probability of
-# selecting the action with max Q-value.
-#
-# Inputs:
-#   t : frame
-#   replay_start_size: number of frames before learning starts
-#   num_actions: number of actions
-#   s: current state
-#   env: environment of the game
-#   policy_net: policy network, an instance of QNetwork
-#
-# Output: next state, action, reward, is_terminated
-#
-################################################################################################################
-def world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net):
-
-    # A uniform random policy is run before the learning starts
-    if t < replay_start_size:
-        action = torch.tensor([[random.randrange(num_actions)]], device=device)
-    else:
-        # Epsilon-greedy behavior policy for action selection
-        # Epsilon is annealed linearly from 1.0 to END_EPSILON over the FIRST_N_FRAMES and stays 0.1 for the
-        # remaining frames
-        epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
-            else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-
-        if np.random.binomial(1, epsilon) == 1:
-            action = torch.tensor([[random.randrange(num_actions)]], device=device)
-        else:
-            # State is 10x10xchannel, max(1)[1] gives the max action value (i.e., max_{a} Q(s, a)).
-            # view(1,1) shapes the tensor to be the right form (e.g. tensor([[0]])) without copying the
-            # underlying tensor.  torch._no_grad() avoids tracking history in autograd.
-            with torch.no_grad():
-                action = policy_net(s_cont).max(1)[1].view(1, 1)
-                # print(action)
-
-    # Act according to the action and observe the transition and reward
-    reward, terminated = env.act(action)
-
-    # Obtain s_prime
-    # s_prime = get_state(env.state())
-    s_cont_prime = get_cont_state(env.name, env.continuous_state())
-
-    return s_cont_prime, action, torch.tensor([[reward]], device=device).float(), torch.tensor([[terminated]], device=device)
-
-################################################################################################################
 # train
 #
 # This is where learning happens. More specifically, this function learns the weights of the policy network
@@ -271,25 +138,38 @@ def world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net):
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
+def calculate_huber_loss(td_errors, k=1.0):
+    """
+    Calculate huber loss element-wisely depending on kappa k.
+    """
+    loss = torch.where(td_errors.abs() <= k, 0.5 * td_errors.pow(2), k * (td_errors.abs() - 0.5 * k))
+    assert loss.shape == (td_errors.shape[0], 32, 32), "huber loss has wrong shape"
+    return loss
+
 def train(sample, policy_net, target_net, optimizer):
     # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
     batch_samples = transition(*zip(*sample))
 
     # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
     # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
-    states = torch.cat(batch_samples.state)
-    next_states = torch.cat(batch_samples.next_state)
-    actions = torch.cat(batch_samples.action)
-    rewards = torch.cat(batch_samples.reward)
-    is_terminal = torch.cat(batch_samples.is_terminal)
-    # print(policy_net(states))
+    states = torch.vstack((batch_samples.state))
+    next_states = torch.vstack((batch_samples.next_state))
+    
+    actions = torch.cat(batch_samples.action, 0)
+    actions = actions.reshape(BATCH_SIZE, 1)
+    
+    rewards = torch.tensor(batch_samples.reward).to(device)
+    rewards = rewards.reshape(BATCH_SIZE, 1)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device)
+    is_terminal = is_terminal.reshape(BATCH_SIZE, 1)
+    
+    # print(states, next_states, actions, rewards, is_terminal)
 
     # Obtain a batch of Q(S_t, A_t) and compute the forward pass.
     # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
     # in state S_t.  Thus we gather along the columns and get the Q-values corresponds to S_t, A_t.
     # Q_s_a is of size (BATCH_SIZE, 1).
-    # print(policy_net(states))
-    # print(actions)
+    actions = actions.type(torch.int64)
     Q_s_a = policy_net(states).gather(1, actions)
 
     # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
@@ -303,6 +183,7 @@ def train(sample, policy_net, target_net, optimizer):
     none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
 
     Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
+    
     if len(none_terminal_next_states) != 0:
         Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
 
@@ -310,13 +191,133 @@ def train(sample, policy_net, target_net, optimizer):
     target = rewards + GAMMA * Q_s_prime_a_prime
 
     # Huber loss
-    loss = f.smooth_l1_loss(target, Q_s_a)
+    loss = f.mse_loss(target,Q_s_a)
+    # loss = f.smooth_l1_loss(target, Q_s_a)
+    # print(loss)
 
     # Zero gradients, backprop, update the weights of policy_net
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+    
+    
+def choose_action(epsilon, state, policy_net, n_actions):
+    # print(state)
+    x = state.to(device).clone().detach().unsqueeze(0)
+    
+    # epsilon-greedy
+    if np.random.uniform() < epsilon: # random
+        action = torch.tensor([random.randint(0, n_actions-1)]).to(device)
 
+    else: # greedy
+        actions_value = policy_net(x) # score of actions
+        action = torch.max(actions_value, 1)[1].data.numpy() # pick the highest one
+        action = torch.tensor(action).to(device)
+
+    return action
+
+def choose_greedy_action(state, policy_net):
+    # print(state)
+    x = state.to(device).clone().detach().unsqueeze(0)
+    
+    actions_value = policy_net(x) # score of actions
+    action = torch.max(actions_value, 1)[1].data.numpy() # pick the highest one
+    action = torch.tensor(action).to(device)
+
+    return action
+
+def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+    # unzip the batch samples and turn components into tensors
+    env = CustomCartPole()
+    env.reset()
+
+    batch_samples = transition(*zip(*sample))
+
+    states = torch.vstack((batch_samples.state)).to(device)
+    next_states = torch.vstack((batch_samples.next_state)).to(device)
+
+    actions = torch.cat(batch_samples.action, 0)
+    actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
+
+    rewards = torch.tensor(batch_samples.reward).to(device).reshape(BATCH_SIZE, 1)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1)
+    
+    num_quantile = 32
+    quantile_tau = torch.FloatTensor([i/num_quantile for i in range(1,num_quantile+1)]).to(device)
+
+    Q_s_a = policy_net(states).gather(2, actions.unsqueeze(-1).expand(BATCH_SIZE, num_quantile, 1))
+
+    avg_list = torch.empty((0))
+
+    for i in range(BATCH_SIZE):
+        cpu = False
+
+        initial_state = batch_samples.state[i].numpy()
+        env.set_state(initial_state)
+        
+        state = states[i]
+        next_state = next_states[i]
+        done = is_terminal[i]
+
+        reward_list = torch.zeros(H).to(device)
+        value_list = torch.zeros(H).to(device)
+        
+        reward_list[0] = rewards[i]
+        value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+        
+        env.set_state(batch_samples.next_state[i].numpy())
+
+        for h in range(1, H):
+            if not done:
+                action = choose_greedy_action(state, policy_net)
+                
+                if cpu == False:
+                    next_state, reward, done, _, _ = env.step(action.item())
+                else:
+                    next_state, reward, done, _ = env.step(action.item())
+                
+                env.set_state(next_state)
+                next_state = torch.Tensor(next_state).to(device)
+
+                value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                reward_list[h] = reward
+
+                state = next_state
+            else:
+                break
+
+        # Create a tensor with indices for the power operation
+        indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
+        indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+
+        # Compute the gamma powers
+        gamma_powers = GAMMA ** indices
+        gamma_powers_val = GAMMA ** indices_val
+
+        # Calculate the discounted rewards
+        running_reward = (gamma_powers * reward_list).cumsum(dim=1)
+        discounted_rewards = running_reward + gamma_powers_val * value_list
+
+        # Calculate the average
+        avg = discounted_rewards.mean()
+        avg = torch.Tensor([avg.item()]).detach()
+
+        avg_list = torch.cat((avg_list, avg)).detach()
+
+    avg_list.requires_grad = True
+    avg_list = avg_list.reshape(BATCH_SIZE, 1)
+    
+    td_error = avg_list - Q_s_a
+
+    huber_l = calculate_huber_loss(td_error, 1.0)
+    quantil_l = abs(quantile_tau -(td_error.detach() < 0).float()) * huber_l / 1.0
+
+    loss = quantil_l.sum(dim=1).mean(dim=1) # , keepdim=True if per weights get multipl
+    loss = loss.mean()
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
 ################################################################################################################
 # dqn
@@ -338,25 +339,22 @@ def train(sample, policy_net, target_net, optimizer):
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
-    length = len(env.continuous_state()[0][0])
-    in_channels = length #change
-    print("in: ", in_channels)
-    num_actions = env.num_actions()
-    print("num_actions: ", num_actions)
+    in_channels = env.observation_space.shape[0]
+    num_actions = env.action_space.n
 
     # Instantiate networks, optimizer, loss and buffer
-    policy_net = QNetwork(num_actions=num_actions, in_channels=in_channels).to(device)
+    policy_net = QNetwork(in_channels, num_actions).to(device)
     replay_start_size = 0
     if not target_off:
-        target_net = QNetwork(num_actions=num_actions, in_channels=in_channels).to(device)
+        target_net = QNetwork(in_channels, num_actions).to(device)
         target_net.load_state_dict(policy_net.state_dict())
 
     if not replay_off:
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    # optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    optimizer = torch.optim.Adam(policy_net.parameters(), lr=step_size, weight_decay=1e-5)
+    criterion = nn.MSELoss()
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
 
     # Set initial values
     e_init = 0
@@ -386,9 +384,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         frame_stamp_init = checkpoint['frame_stamp_per_run']
 
         # Set to training mode
-        policy_net.train()
+        policy_net.trainWithRollout()
         if not target_off:
-            target_net.train()
+            target_net.trainWithRollout()
 
     # Data containers for performance measure and model related data
     data_return = data_return_init
@@ -405,15 +403,32 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        env.reset()
-        s_cont = get_cont_state(env.name, env.continuous_state())            
-    
+        cpu = True
+        
+        if type(env.reset()) != numpy.ndarray:
+            cpu = False
+            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+        else:
+            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+
         is_terminated = False
-        while(not is_terminated) and t < NUM_FRAMES:
+        
+        while (not is_terminated):
+            if e % 100 == 0:
+                env.render()
+            
             # Generate data
-            s_cont_prime, action, reward, is_terminated = world_dynamics(t, replay_start_size, num_actions, s_cont, env, policy_net)
-            # print(s_cont_prime)
-            # print(s_cont)
+            epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
+                else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
+            
+            action = choose_action(epsilon, s_cont, policy_net, num_actions)
+
+            if cpu == False:
+                s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
+            else:
+                s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+
+            s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 
             sample = None
             if replay_off:
@@ -427,24 +442,21 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     # Sample a batch
                     sample = r_buffer.sample(BATCH_SIZE)
 
-            # if sample!= None:
-                # print("sample: ", len(sample))
-                # print("s_cont: ", s_cont.size())
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    train(sample, policy_net, policy_net, optimizer)
+                    trainWithRollout(sample, policy_net, policy_net, optimizer, H)
+                    # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
-                    train(sample, policy_net, target_net, optimizer)
+                    trainWithRollout(sample, policy_net, target_net, optimizer, H)
+                    # train(sample, policy_net, target_net, optimizer)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
-            G += reward.item()
-            
-            t += 1
+            G += reward
 
             # Continue the process
             s_cont = s_cont_prime
@@ -458,16 +470,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 1000 == 0:
+        if e % 100 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
+
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
             f.close()
-
         # Save model data and other intermediate data if the corresponding flag is true
-        if store_intermediate_result and e % 1000 == 0:
+        if store_intermediate_result and e % 1 == 0:
             torch.save({
                         'episode': e,
                         'frame': t,
@@ -482,7 +494,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             }, output_file_name + "_checkpoint")
 
     # Print final logging info
-    logging.info("Avg return: " + str(np.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t))
+    logging.info("Avg return: " + str(numpy.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t))
         
     # Write data to file
     torch.save({
@@ -490,6 +502,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         'frame_stamps': frame_stamp,
         'policy_net_state_dict': policy_net.state_dict()
     }, output_file_name + "_data_and_weights")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -511,14 +524,13 @@ def main():
     if args.output:
         file_name = args.output
     else:
-        file_name = os.getcwd() + "/" + args.game
+        file_name = os.getcwd() + "/" + "test"
 
     load_file_path = None
     if args.loadfile:
         load_file_path = args.loadfile
 
-    print(args.game)
-    env = Velenvironment(args.game)
+    env = gym.make("CartPole-v1")
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
@@ -526,3 +538,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
