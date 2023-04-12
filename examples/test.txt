@@ -1997,3 +1997,16 @@ Episode 700 | Return: 20.0 | Avg return: 22.76 | Frame: 719 | Time per frame: 0.
 Episode 800 | Return: 18.0 | Avg return: 19.49 | Frame: 817 | Time per frame: 0.3146138337134148 | Env Model Loss: tensor(0.1365, grad_fn=<AddBackward0>)
 Episode 900 | Return: 13.0 | Avg return: 19.46 | Frame: 912 | Time per frame: 0.32513304159306644 | Env Model Loss: tensor(0.1084, grad_fn=<AddBackward0>)
 Episode 100 | Return: 18.0 | Avg return: 11.58 | Frame: 117 | Time per frame: 0.148159051552797 | Env Model Loss: tensor(0.2811, grad_fn=<AddBackward0>)
+Episode 100 | Return: 16.0 | Avg return: 13.93 | Frame: 99 | Time per frame: 0.029761181937323675
+Episode 200 | Return: 15.0 | Avg return: 19.5 | Frame: 199 | Time per frame: 0.017627819099617963
+Episode 300 | Return: 10.0 | Avg return: 20.45 | Frame: 299 | Time per frame: 0.014241696201439287
+Episode 400 | Return: 20.0 | Avg return: 22.3 | Frame: 399 | Time per frame: 0.012727067584083193
+Episode 500 | Return: 16.0 | Avg return: 22.42 | Frame: 499 | Time per frame: 0.011068318793195522
+Episode 100 | Return: 44.0 | Avg return: 15.04 | Frame: 99 | Time per frame: 0.016305677818529533
+Episode 200 | Return: 22.0 | Avg return: 18.58 | Frame: 199 | Time per frame: 0.01108443197892539
+Episode 300 | Return: 9.0 | Avg return: 20.5 | Frame: 299 | Time per frame: 0.008611200645217131
+Episode 400 | Return: 22.0 | Avg return: 21.44 | Frame: 399 | Time per frame: 0.007547027783883843
+Episode 500 | Return: 12.0 | Avg return: 22.46 | Frame: 499 | Time per frame: 0.007264891702808694
+Episode 100 | Return: 12.0 | Avg return: 13.97 | Frame: 99 | Time per frame: 0.1778779367003778
+Episode 200 | Return: 11.0 | Avg return: 12.64 | Frame: 199 | Time per frame: 0.2220432962005462
+Episode 300 | Return: 82.0 | Avg return: 15.02 | Frame: 299 | Time per frame: 0.25392828737214257
