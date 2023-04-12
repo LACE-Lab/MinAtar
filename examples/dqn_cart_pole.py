@@ -144,7 +144,6 @@ class EnvModel(nn.Module):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
         predicted_next_state, predicted_reward, predicted_done = self.single_forward(state_action_pair)
-        self.state = predicted_next_state
         return predicted_next_state, predicted_reward, predicted_done
 
 ###########################################################################################################
@@ -311,9 +310,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         for h in range(1, H):
             if not done:
                 action = choose_greedy_action(state, policy_net)
-
                 next_state, reward, done = env_model.step(action)
-
                 env_model.load_state(next_state)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
@@ -435,7 +432,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
     
-    for t in tqdm(range(NUM_FRAMES)):
+    while t <= NUM_FRAMES:
+    # for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
 
@@ -517,11 +515,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 100 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss))
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()))
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss) + "\n" )
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n" )
             f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:

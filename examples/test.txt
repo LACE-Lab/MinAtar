@@ -2014,3 +2014,11 @@ Episode 400 | Return: 9.0 | Avg return: 17.93 | Frame: 399 | Time per frame: 0.3
 Episode 100 | Return: 16.0 | Avg return: 12.47 | Frame: 115 | Time per frame: 0.17430126770682958 | Env Model Loss: tensor(0.8046, grad_fn=<AddBackward0>)
 Episode 200 | Return: 40.0 | Avg return: 18.03 | Frame: 239 | Time per frame: 0.2506424433017874 | Env Model Loss: tensor(0.2610, grad_fn=<AddBackward0>)
 Episode 300 | Return: 11.0 | Avg return: 21.71 | Frame: 310 | Time per frame: 0.3478276737274662 | Env Model Loss: tensor(0.2906, grad_fn=<AddBackward0>)
+Episode 100 | Return: 12.0 | Avg return: 11.66 | Frame: 111 | Time per frame: 0.16206409694912197 | Env Model Loss: tensor(0.4229, grad_fn=<AddBackward0>)
+Episode 200 | Return: 13.0 | Avg return: 11.79 | Frame: 212 | Time per frame: 0.19847184419631958 | Env Model Loss: tensor(0.3274, grad_fn=<AddBackward0>)
+Episode 300 | Return: 10.0 | Avg return: 11.35 | Frame: 309 | Time per frame: 0.20916065660495203 | Env Model Loss: tensor(0.3810, grad_fn=<AddBackward0>)
+Episode 100 | Return: 14.0 | Avg return: 13.2 | Frame: 113 | Time per frame: 0.20112299919128418 | Env Model Loss: 0.24210910499095917
+Episode 200 | Return: 12.0 | Avg return: 12.55 | Frame: 211 | Time per frame: 0.2263341853968905 | Env Model Loss: 0.13917125761508942
+Episode 300 | Return: 22.0 | Avg return: 13.17 | Frame: 321 | Time per frame: 0.23575952342737502 | Env Model Loss: 0.35416609048843384
+Episode 100 | Return: 8.0 | Avg return: 7.78 | Frame: 1322 | Time per frame: 0.02147944179136706 | Env Model Loss: 0.40554848313331604
+Episode 200 | Return: 10.0 | Avg return: 10.02 | Frame: 2435 | Time per frame: 0.02040790346368872 | Env Model Loss: 0.20140761137008667
