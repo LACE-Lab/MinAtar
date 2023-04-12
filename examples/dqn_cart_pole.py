@@ -482,7 +482,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     sample_env = r_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample_policy is not None and env_model_loss.item() > 0.06:
+            if t % TRAINING_FREQ == 0 and sample_env is not None and env_model_loss.item() > 0.01:
                 env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=scheduler, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
