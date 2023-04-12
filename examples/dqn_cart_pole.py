@@ -240,7 +240,6 @@ def choose_greedy_action(state, policy_net):
     return action
 
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
-    # unzip the batch samples and turn components into tensors
     env = CustomCartPole()
     env.reset()
     
@@ -249,9 +248,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     num_actions = env.action_space.n
     env_model = EnvModel(in_channels, num_actions).to(device)
 
-    # Load an initial state
-    state = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-    env_model.load_state(state)
+    # unzip the batch samples and turn components into tensors
 
     batch_samples = transition(*zip(*sample))
 

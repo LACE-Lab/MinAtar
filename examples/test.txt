@@ -1967,3 +1967,5 @@ Episode 200 | Return: 20.0 | Avg return: 14.29 | Frame: 219 | Time per frame: 0.
 Episode 100 | Return: 12.0 | Avg return: 12.55 | Frame: 111 | Time per frame: 0.1609176558417243 | Env Model Loss: tensor(0.2604, grad_fn=<AddBackward0>)
 Episode 200 | Return: 14.0 | Avg return: 13.17 | Frame: 213 | Time per frame: 0.19748102667186182 | Env Model Loss: tensor(0.3004, grad_fn=<AddBackward0>)
 Episode 300 | Return: 48.0 | Avg return: 23.97 | Frame: 347 | Time per frame: 0.25929954416126616 | Env Model Loss: tensor(0.1055, grad_fn=<AddBackward0>)
+Episode 100 | Return: 15.0 | Avg return: 13.58 | Frame: 114 | Time per frame: 0.1726893667589154 | Env Model Loss: tensor(0.1932, grad_fn=<AddBackward0>)
+Episode 200 | Return: 27.0 | Avg return: 16.74 | Frame: 226 | Time per frame: 0.2273883492545744 | Env Model Loss: tensor(0.0628, grad_fn=<AddBackward0>)
