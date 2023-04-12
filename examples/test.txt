@@ -1961,3 +1961,9 @@ Episode 21 | Return: 27.0 | Avg return: 3.64 | Step: 400 | Time per frame: 0.069
 Episode 100 | Return: 9.0 | Avg return: 12.83 | Frame: 108 | Time per frame: 0.21063048972023857
 Episode 200 | Return: 8.0 | Avg return: 11.84 | Frame: 207 | Time per frame: 0.2335716664503162
 Episode 300 | Return: 19.0 | Avg return: 16.91 | Frame: 318 | Time per frame: 0.26781445554217453
+Episode 100 | Return: 12.0 | Avg return: 12.84 | Frame: 111 | Time per frame: 0.1790218568062997
+Episode 100 | Return: 13.0 | Avg return: 13.08 | Frame: 112 | Time per frame: 0.17470249107905797 | Env Model Loss: None
+Episode 200 | Return: 20.0 | Avg return: 14.29 | Frame: 219 | Time per frame: 0.20247484559882178 | Env Model Loss: None
+Episode 100 | Return: 12.0 | Avg return: 12.55 | Frame: 111 | Time per frame: 0.1609176558417243 | Env Model Loss: tensor(0.2604, grad_fn=<AddBackward0>)
+Episode 200 | Return: 14.0 | Avg return: 13.17 | Frame: 213 | Time per frame: 0.19748102667186182 | Env Model Loss: tensor(0.3004, grad_fn=<AddBackward0>)
+Episode 300 | Return: 48.0 | Avg return: 23.97 | Frame: 347 | Time per frame: 0.25929954416126616 | Env Model Loss: tensor(0.1055, grad_fn=<AddBackward0>)

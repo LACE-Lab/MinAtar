@@ -96,22 +96,48 @@ class QNetwork(pl.LightningModule, nn.Module):
         return self.output(x)
 
 # Define the approximate model of the environment
-class Model(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
-        super(Model, self).__init__()
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.fc1 = nn.Linear(state_dim + action_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 2 * state_dim + 1)
-    
-    def forward(self, state, action):
-        x = torch.cat([state, action], dim=1)
+class EnvModel(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=100):
+        super(EnvModel, self).__init__()
+        self.state_size = state_size
+        self.action_size = action_size
+        self.state = None
+        
+        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, state_size + 2)
+        
+    def load_state(self, state):
+        self.state = state.clone().detach()
+
+    def save_state(self):
+        return self.state.clone().detach()
+
+    def forward(self, x):
         x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        next_state, reward, done = x[:, :self.state_dim], x[:, self.state_dim:-1], x[:, -1]
-        return next_state, reward, done
+        x = self.fc2(x)
+        
+        state = x[:, :self.state_size]
+        reward = x[:, -2:-1]
+        done = torch.sigmoid(x[:, -1:])
+        
+        return state, reward, done
+    
+    def single_forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        
+        state = x[:self.state_size]
+        reward = x[-2:-1]
+        done = torch.sigmoid(x[-1:])
+        
+        return state, reward, done
+    
+    def step(self, action):
+        one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
+        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
+        predicted_next_state, predicted_reward, predicted_done = self.single_forward(state_action_pair)
+        return predicted_next_state, predicted_reward, predicted_done
+        
 
 ###########################################################################################################
 # class replay_buffer
@@ -154,59 +180,38 @@ class replay_buffer:
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-def train(sample, policy_net, target_net, optimizer):
-    # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
+def train_env_model(sample, env_model, optimizer):
     batch_samples = transition(*zip(*sample))
 
-    # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
-    # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
-    states = torch.vstack((batch_samples.state))
-    next_states = torch.vstack((batch_samples.next_state))
-    
+    states = torch.vstack((batch_samples.state)).to(device)
+    next_states = torch.vstack((batch_samples.next_state)).to(device)
+
     actions = torch.cat(batch_samples.action, 0)
-    actions = actions.reshape(BATCH_SIZE, 1)
-    
-    rewards = torch.tensor(batch_samples.reward).to(device)
-    rewards = rewards.reshape(BATCH_SIZE, 1)
-    is_terminal = torch.tensor(batch_samples.is_terminal).to(device)
-    is_terminal = is_terminal.reshape(BATCH_SIZE, 1)
-    
-    # print(states, next_states, actions, rewards, is_terminal)
+    actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
-    # Obtain a batch of Q(S_t, A_t) and compute the forward pass.
-    # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
-    # in state S_t.  Thus we gather along the columns and get the Q-values corresponds to S_t, A_t.
-    # Q_s_a is of size (BATCH_SIZE, 1).
-    actions = actions.type(torch.int64)
-    Q_s_a = policy_net(states).gather(1, actions)
+    rewards = torch.tensor(batch_samples.reward).to(device).reshape(BATCH_SIZE, 1)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1).type(torch.float32)
 
-    # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
-    # Note: each row of the network's output corresponds to the actions of S_{t+1}.  max(1)[0] gives the max action
-    # values in each row (since this a batch).  The detach() detaches the target net's tensor from computation graph so
-    # to prevent the computation of its gradient automatically.  Q_s_prime_a_prime is of size (BATCH_SIZE, 1).
+    # One-hot encode the actions
+    one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
 
-    # Get the indices of next_states that are not terminal
-    none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
-    # Select the indices of each row
-    none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+    # Concatenate states and one-hot encoded actions
+    state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
 
-    Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
-    
-    if len(none_terminal_next_states) != 0:
-        Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+    # Forward pass to get predicted next states, rewards, and done
+    predicted_next_states, predicted_rewards, predicted_dones = env_model(state_action_pairs)
 
-    # Compute the target
-    target = rewards + GAMMA * Q_s_prime_a_prime
+    # Compute the loss
+    loss = f.mse_loss(predicted_next_states, next_states) \
+           + f.mse_loss(predicted_rewards, rewards) \
+           + f.binary_cross_entropy(predicted_dones, is_terminal)
 
-    # Huber loss
-    loss = f.mse_loss(target,Q_s_a)
-    # loss = f.smooth_l1_loss(target, Q_s_a)
-    # print(loss)
-
-    # Zero gradients, backprop, update the weights of policy_net
+    # Zero gradients, backprop, and update the weights of env_model
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+    
+    return loss
     
     
 def choose_action(epsilon, state, policy_net, n_actions):
@@ -238,6 +243,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     # unzip the batch samples and turn components into tensors
     env = CustomCartPole()
     env.reset()
+    
+    # Initialize the environment model
+    in_channels = env.observation_space.shape[0]
+    num_actions = env.action_space.n
+    env_model = EnvModel(in_channels, num_actions).to(device)
+
+    # Load an initial state
+    state = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+    env_model.load_state(state)
 
     batch_samples = transition(*zip(*sample))
 
@@ -257,8 +271,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     for i in range(BATCH_SIZE):
         cpu = False
 
-        initial_state = batch_samples.state[i].numpy()
-        env.set_state(initial_state)
+        initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
+        env_model.load_state(initial_state)
         
         state = states[i]
         next_state = next_states[i]
@@ -270,19 +284,16 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         reward_list[0] = rewards[i]
         value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
         
-        env.set_state(batch_samples.next_state[i].numpy())
+        next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
+        env_model.load_state(next_state)
 
         for h in range(1, H):
             if not done:
                 action = choose_greedy_action(state, policy_net)
                 
-                if cpu == False:
-                    next_state, reward, done, _, _ = env.step(action.item())
-                else:
-                    next_state, reward, done, _ = env.step(action.item())
+                next_state, reward, done = env_model.step(action)
                 
-                env.set_state(next_state)
-                next_state = torch.Tensor(next_state).to(device)
+                env_model.load_state(next_state)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                 reward_list[h] = reward
@@ -343,6 +354,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
+    env_model = EnvModel(in_channels, num_actions).to(device)
+    
     replay_start_size = 0
     if not target_off:
         target_net = QNetwork(in_channels, num_actions).to(device)
@@ -352,8 +365,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    criterion = nn.MSELoss()
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
+    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size)
 
     # Set initial values
     e_init = 0
@@ -397,6 +410,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     e = e_init
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
+    
     for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
@@ -429,9 +443,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 
-            sample = None
+            sample_policy = None
+            sample_env = None
             if replay_off:
-                sample = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
+                sample_policy = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
+                sample_env = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
             else:
                 # Write the current frame to replay buffer
                 r_buffer.add(s_cont, s_cont_prime, action, reward, is_terminated)
@@ -439,16 +455,20 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 # Start learning when there's enough data and when we can sample a batch of size BATCH_SIZE
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
-                    sample = r_buffer.sample(BATCH_SIZE)
+                    sample_policy = r_buffer.sample(BATCH_SIZE)
+                    sample_env = r_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample is not None:
+            if t % TRAINING_FREQ == 0 and sample_policy is not None:
+                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer)
+
+            if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    trainWithRollout(sample, policy_net, policy_net, optimizer, H)
+                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, H)
                     # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample, policy_net, target_net, optimizer, H)
+                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, H)
                     # train(sample, policy_net, target_net, optimizer)
 
             # Update the target network only after some number of policy network updates
@@ -473,11 +493,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 100 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss))
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss) + "\n" )
             f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
