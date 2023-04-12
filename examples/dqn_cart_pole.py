@@ -144,6 +144,7 @@ class EnvModel(nn.Module):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
         predicted_next_state, predicted_reward, predicted_done = self.single_forward(state_action_pair)
+        self.state = predicted_next_state
         return predicted_next_state, predicted_reward, predicted_done
 
 ###########################################################################################################
@@ -310,9 +311,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         for h in range(1, H):
             if not done:
                 action = choose_greedy_action(state, policy_net)
-                
+
                 next_state, reward, done = env_model.step(action)
-                
+
                 env_model.load_state(next_state)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()

@@ -2010,3 +2010,7 @@ Episode 500 | Return: 12.0 | Avg return: 22.46 | Frame: 499 | Time per frame: 0.
 Episode 100 | Return: 12.0 | Avg return: 13.97 | Frame: 99 | Time per frame: 0.1778779367003778
 Episode 200 | Return: 11.0 | Avg return: 12.64 | Frame: 199 | Time per frame: 0.2220432962005462
 Episode 300 | Return: 82.0 | Avg return: 15.02 | Frame: 299 | Time per frame: 0.25392828737214257
+Episode 400 | Return: 9.0 | Avg return: 17.93 | Frame: 399 | Time per frame: 0.32584421019207566
+Episode 100 | Return: 16.0 | Avg return: 12.47 | Frame: 115 | Time per frame: 0.17430126770682958 | Env Model Loss: tensor(0.8046, grad_fn=<AddBackward0>)
+Episode 200 | Return: 40.0 | Avg return: 18.03 | Frame: 239 | Time per frame: 0.2506424433017874 | Env Model Loss: tensor(0.2610, grad_fn=<AddBackward0>)
+Episode 300 | Return: 11.0 | Avg return: 21.71 | Frame: 310 | Time per frame: 0.3478276737274662 | Env Model Loss: tensor(0.2906, grad_fn=<AddBackward0>)
