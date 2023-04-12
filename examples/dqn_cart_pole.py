@@ -104,6 +104,8 @@ class EnvModel(nn.Module):
         self.state = None
         
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
+        self.bn1 = nn.BatchNorm1d(hidden_size)  # Batch normalization for hidden layer
+        self.dropout = nn.Dropout(0.5)  # Dropout layer with dropout rate 0.5
         self.fc2 = nn.Linear(hidden_size, state_size + 2)
         
     def load_state(self, state):
@@ -113,7 +115,10 @@ class EnvModel(nn.Module):
         return self.state.clone().detach()
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
+        x = self.fc1(x)
+        x = self.bn1(x)  # Apply batch normalization
+        x = f.relu(x)
+        x = self.dropout(x)  # Apply dropout
         x = self.fc2(x)
         
         state = x[:, :self.state_size]
@@ -123,7 +128,9 @@ class EnvModel(nn.Module):
         return state, reward, done
     
     def single_forward(self, x):
-        x = torch.relu(self.fc1(x))
+        x = self.fc1(x)
+        x = f.relu(x)
+        x = self.dropout(x)  # Apply dropout
         x = self.fc2(x)
         
         state = x[:self.state_size]
@@ -137,7 +144,6 @@ class EnvModel(nn.Module):
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
         predicted_next_state, predicted_reward, predicted_done = self.single_forward(state_action_pair)
         return predicted_next_state, predicted_reward, predicted_done
-        
 
 ###########################################################################################################
 # class replay_buffer
