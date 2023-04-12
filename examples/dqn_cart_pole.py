@@ -47,6 +47,7 @@ FIRST_N_FRAMES = 100
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.0001
+WEIGHT_DECAY = 0.0001
 GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
@@ -105,7 +106,7 @@ class EnvModel(nn.Module):
         
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
         self.bn1 = nn.BatchNorm1d(hidden_size)  # Batch normalization for hidden layer
-        self.dropout = nn.Dropout(0.5)  # Dropout layer with dropout rate 0.5
+        self.dropout = nn.Dropout(0.1)  # Dropout layer with dropout rate 0.1
         self.fc2 = nn.Linear(hidden_size, state_size + 2)
         
     def load_state(self, state):
@@ -186,7 +187,8 @@ class replay_buffer:
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-def train_env_model(sample, env_model, optimizer):
+
+def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
     batch_samples = transition(*zip(*sample))
 
     states = torch.vstack((batch_samples.state)).to(device)
@@ -212,11 +214,26 @@ def train_env_model(sample, env_model, optimizer):
            + f.mse_loss(predicted_rewards, rewards) \
            + f.binary_cross_entropy(predicted_dones, is_terminal)
 
+    # L2 regularization
+    l2_reg = torch.tensor(0., device=device)
+    for param in env_model.parameters():
+        l2_reg += torch.norm(param, p=2)
+    loss += weight_decay * l2_reg
+
     # Zero gradients, backprop, and update the weights of env_model
     optimizer.zero_grad()
     loss.backward()
+
+    # Gradient clipping
+    if clip_grad is not None:
+        torch.nn.utils.clip_grad_norm_(env_model.parameters(), clip_grad)
+
     optimizer.step()
-    
+
+    # Learning rate scheduling
+    if scheduler is not None:
+        scheduler.step()
+
     return loss
     
     
@@ -369,7 +386,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         replay_start_size = REPLAY_START_SIZE
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size)
+    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size, weight_decay=WEIGHT_DECAY)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=STEP_SIZE, gamma=GAMMA)
+
 
     # Set initial values
     e_init = 0
@@ -411,6 +430,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Train for a number of frames
     t = t_init
     e = e_init
+    env_model_loss = torch.tensor(1)
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
     
@@ -462,8 +482,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     sample_env = r_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample_policy is not None:
-                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer)
+            if t % TRAINING_FREQ == 0 and sample_policy is not None and env_model_loss.item() > 0.01:
+                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=scheduler, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
