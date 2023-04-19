@@ -6,8 +6,8 @@ suffixes2 = ["perfect"]
 for suffix1 in suffixes1:
     for suffix2 in suffixes2:
         # for suffix3 in suffixes3:
-        PATH = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}.txt"
-        result_path = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}.results"
+        PATH = f"/research/erin/zoshao/results/2023_04_12_{suffix1}_{suffix2}.txt"
+        result_path = f"/research/erin/zoshao/results/2023_04_12_{suffix1}_{suffix2}.results"
         with open(PATH, 'r') as f:
             for l in f:
                 sp = l.split()
