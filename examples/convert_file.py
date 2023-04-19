@@ -1,19 +1,18 @@
 import pstats
 
 suffixes1 = ["cart_pole"]
-suffixes2 = ["0.1", "0.01", "0.001", "0.0001", "0.00001"]
+suffixes2 = ["perfect"]
 # suffixes3 = ["a", "w"]
 for suffix1 in suffixes1:
     for suffix2 in suffixes2:
         # for suffix3 in suffixes3:
-        PATH = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}_redo.txt"
-        result_path = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}_redo.results"
+        PATH = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}.txt"
+        result_path = f"/research/erin/zoshao/results/2023_04_19_{suffix1}_{suffix2}.results"
         with open(PATH, 'r') as f:
             for l in f:
                 sp = l.split()
                 r = sp[8]
                 frame = sp[11]
-                print(r, frame)
                 with open(result_path, "a") as d:
                     d.write(str(r)+"\t"+str(frame)+"\n")
                 d.close()
