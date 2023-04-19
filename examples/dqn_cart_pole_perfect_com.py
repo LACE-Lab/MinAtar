@@ -265,15 +265,9 @@ def choose_greedy_action(state, policy_net):
     return action
 
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+    # unzip the batch samples and turn components into tensors
     env = CustomCartPole()
     env.reset()
-    
-    # Initialize the environment model
-    in_channels = env.observation_space.shape[0]
-    num_actions = env.action_space.n
-    env_model = EnvModel(in_channels, num_actions).to(device)
-
-    # unzip the batch samples and turn components into tensors
 
     batch_samples = transition(*zip(*sample))
 
@@ -293,8 +287,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     for i in range(BATCH_SIZE):
         cpu = False
 
-        initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
-        env_model.load_state(initial_state)
+        initial_state = batch_samples.state[i].numpy()
+        env.set_state(initial_state)
         
         state = states[i]
         next_state = next_states[i]
@@ -306,14 +300,19 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         reward_list[0] = rewards[i]
         value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
         
-        next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
-        env_model.load_state(next_state)
+        env.set_state(batch_samples.next_state[i].numpy())
 
         for h in range(1, H):
             if not done:
                 action = choose_greedy_action(state, policy_net)
-                next_state, reward, done = env_model.step(action)
-                env_model.load_state(next_state)
+                
+                if cpu == False:
+                    next_state, reward, done, _, _ = env.step(action.item())
+                else:
+                    next_state, reward, done, _ = env.step(action.item())
+                
+                env.set_state(next_state)
+                next_state = torch.Tensor(next_state).to(device)
 
                 value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                 reward_list[h] = reward
