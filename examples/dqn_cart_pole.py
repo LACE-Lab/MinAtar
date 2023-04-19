@@ -210,9 +210,11 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     predicted_next_states, predicted_rewards, predicted_dones = env_model(state_action_pairs)
 
     # Compute the loss
-    loss = f.mse_loss(predicted_next_states, next_states) \
-           + f.mse_loss(predicted_rewards, rewards) \
-           + f.binary_cross_entropy(predicted_dones, is_terminal)
+    loss_state = f.mse_loss(predicted_next_states, next_states)
+    loss_reward = f.mse_loss(predicted_rewards, rewards)
+    loss_done = f.binary_cross_entropy(predicted_dones, is_terminal)
+
+    loss = loss_state + loss_reward + loss_done
 
     # L2 regularization
     l2_reg = torch.tensor(0., device=device)
@@ -230,11 +232,11 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    # Learning rate scheduling
-    if scheduler is not None:
-        scheduler.step()
+    # # Learning rate scheduling
+    # if scheduler is not None:
+    #     scheduler.step()
 
-    return loss
+    return loss_state, loss_reward, loss_done, loss
     
     
 def choose_action(epsilon, state, policy_net, n_actions):
@@ -364,7 +366,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     in_channels = env.observation_space.shape[0]
@@ -383,10 +385,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size, weight_decay=WEIGHT_DECAY)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=STEP_SIZE, gamma=GAMMA)
-
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size_policy, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
+    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size_env, weight_decay=WEIGHT_DECAY)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size_env, gamma=GAMMA)
 
     # Set initial values
     e_init = 0
@@ -481,8 +482,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     sample_env = r_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample_env is not None and env_model_loss.item() > 0.01:
-                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=scheduler, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
+            if t % TRAINING_FREQ == 0 and sample_env is not None:
+                env_model_loss_state, env_model_loss_reward, env_model_loss_done, env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
@@ -515,11 +516,17 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 100 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()))
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) +
+                         " | Env Model State Loss: " + str(env_model_loss_state.item()) + " | Env Model Reward Loss: " + str(env_model_loss_reward.item()) +
+                         " | Env Model Done Loss: " + str(env_model_loss_done.item()) 
+                        )                    
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n" )
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) +
+                         " | Env Model State Loss: " + str(env_model_loss_state.item()) + " | Env Model Reward Loss: " + str(env_model_loss_reward.item()) +
+                         " | Env Model Done Loss: " + str(env_model_loss_done.item()) 
+                        )
             f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
@@ -553,7 +560,8 @@ def main():
     parser.add_argument("--output", "-o", type=str)
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--loadfile", "-l", type=str)
-    parser.add_argument("--alpha", "-a", type=float, default=STEP_SIZE)
+    parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
+    parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -576,7 +584,7 @@ def main():
     env = gym.make("CartPole-v1")
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2)
 
 
 if __name__ == '__main__':
