@@ -5,14 +5,11 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "Test Game 1 (A is combined NN, B is uncombined QR-DQN)"
--n /research/erin/zoshao/results/2023_01_25_test_qr_dqn.png
--g "A: a=1e-5, w=1e-5" "A: a=1e-4, w=1e-5" "A: a=1e-4, w=1e-4" "A: a=1e-4, w=1e-3" "B: a=1e-5, w=1e-5" "B: a=1e-4, w=1e-5" "B: a=1e-4, w=1e-4" "B: a=1e-4, w=1e-3" 
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_com_a_0.00001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_com_a_0.0001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_com_w_0.0001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_com_w_0.001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_a_0.00001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_a_0.0001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_w_0.0001.results
--a /research/erin/zoshao/results/2023_01_25_test_qr_dqn_w_0.001.results
+-l "Cart Pole with MVE"
+-n /research/erin/zoshao/results/2023_04_19_cart_pole.png
+-g "0.1" "0.01" "0.001" "0.0001" "0.00001"
+-a /research/erin/zoshao/results/2023_04_19_cart_pole_0.1_redo.results
+-a /research/erin/zoshao/results/2023_04_19_cart_pole_0.01_redo.results
+-a /research/erin/zoshao/results/2023_04_19_cart_pole_0.001_redo.results
+-a /research/erin/zoshao/results/2023_04_19_cart_pole_0.0001_redo.results
+-a /research/erin/zoshao/results/2023_04_19_cart_pole_0.00001_redo.results
