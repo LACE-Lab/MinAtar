@@ -15,3 +15,4 @@ Episode 1400 | Return: 13.0 | Avg return: 17.31 | Frame: 22137 | Time per frame:
 Episode 100 | Return: 189.0 | Avg return: 76.97 | Frame: 10219 | Time per frame: 0.02280810637790894 | Env Model Loss: 0.012733935378491879 | Env Model State Loss: 0.004852088633924723 | Env Model Reward Loss: 2.7546573619474657e-05 | Env Model Done Loss: 0.005962811876088381
 Episode 100 | Return: 10.0 | Avg return: 14.31 | Frame: 2543 | Time per frame: 0.03071482857521528 | Env Model Loss: 0.013955533504486084
 Episode 100 | Return: 9.0 | Avg return: 6.49 | Frame: 1057 | Time per frame: 0.013417500421024204 | Env Model Loss: 0.05455576628446579
+Episode 500 | Return: 10.0 | Avg return: 11.07 | Frame: 499 | Time per frame: 0.01555415002520911

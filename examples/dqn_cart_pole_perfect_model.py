@@ -406,7 +406,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     e = e_init
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
-    for t in tqdm(range(NUM_FRAMES)):
+    while t <= NUM_FRAMES:
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
 
@@ -464,6 +464,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
+            t += 1
+            
             G += reward
 
             # Continue the process
