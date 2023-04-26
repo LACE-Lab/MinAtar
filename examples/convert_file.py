@@ -1,8 +1,9 @@
 import pstats
 
 suffixes1 = ["cart_pole"]
-suffixes2 = ["perfect"]
+suffixes2 = ["0.001", "0.01", "0.01_no_hardcode", "0.01_no_hardcode_h1", "0.1", "0.1_no_hardcode", "0.1_no_hardcode_h1", "a2_0.001", "a2_0.01", "a2_0.01_h1", "a2_0.1", "a2_0.1_h1", "no_rollout", "perfect", "perfect_h1"]
 # suffixes3 = ["a", "w"]
+
 for suffix1 in suffixes1:
     for suffix2 in suffixes2:
         # for suffix3 in suffixes3:
