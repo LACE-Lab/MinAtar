@@ -1,21 +1,11 @@
 ################################################################################################################
 # Authors:                                                                                                     #
-# Kenny Young (kjyoung@ualberta.ca)                                                                            #
-# Tian Tian(ttian@ualberta.ca)                                                                                 #
-#                                                                                                              #
-# python3 dqn.py -g <game>                                                                                     #
-#   -o, --output <directory/file name prefix>                                                                  #
-#   -v, --verbose: outputs the average returns every 1000 episodes                                             #
-#   -l, --loadfile <directory/file name of the saved model>                                                    #
-#   -a, --alpha <number>: step-size parameter                                                                  #
-#   -s, --save: save model data every 1000 episodes                                                            #
-#   -r, --replayoff: disable the replay buffer and train on each state transition                              #
-#   -t, --targetoff: disable the target network                                                                #
-#                                                                                                              #
-# References used for this implementation:                                                                     #
-#   https://pytorch.org/docs/stable/nn.html#                                                                   #
-#   https://pytorch.org/docs/stable/torch.html                                                                 #
-#   https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html                                   #
+# Zoe
+#
+# This file contains DQN alg training with Cart Pole.
+# Incorpeted MVE, NN for Env model
+# The Env model predicts only the state
+# The reward and termination rule are hardcoded
 ################################################################################################################
 
 import torch
@@ -53,7 +43,7 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-H = 3 # rollout constant
+H = 1 # rollout constant
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
