@@ -42,7 +42,7 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-H = 3 # rollout constant
+H = 1 # rollout constant
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")

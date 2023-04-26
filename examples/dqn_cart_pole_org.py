@@ -53,7 +53,6 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-H = 3 # rollout constant
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -96,24 +95,6 @@ class QNetwork(pl.LightningModule, nn.Module):
 
         # Returns the output from the fully-connected linear layer
         return self.output(x)
-
-# Define the approximate model of the environment
-class Model(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
-        super(Model, self).__init__()
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.fc1 = nn.Linear(state_dim + action_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 2 * state_dim + 1)
-    
-    def forward(self, state, action):
-        x = torch.cat([state, action], dim=1)
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        next_state, reward, done = x[:, :self.state_dim], x[:, self.state_dim:-1], x[:, -1]
-        return next_state, reward, done
 
 ###########################################################################################################
 # class replay_buffer
@@ -249,70 +230,6 @@ def choose_action(t, replay_start_size, state, policy_net, n_actions):
         action = torch.tensor(action).to(device)
 
     return action
-
-# Define a function for computing the rollout
-def rollout(sample, env, policy_net, target_net, H):
-    # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
-    batch_samples = transition(*zip(*sample))
-
-    # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
-    # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
-    sample_states = torch.cat(batch_samples.state)
-    sample_next_states = torch.cat(batch_samples.next_state)
-    sample_actions = torch.cat(batch_samples.action)
-    sample_rewards = torch.cat(batch_samples.reward)
-    sample_is_terminal = torch.cat(batch_samples.is_terminal)
-    
-    # Initialize variables for the rollout
-    state = sample_states[0]
-    # print("state: ", state)
-    states = []
-    actions = []
-    rewards = []
-    done = False
-    total_reward = 0
-    
-    # Perform the rollout for H steps or until done
-    for h in range(H):
-        states.append(state)
-        action = choose_action(state, policy_net, EPSILON, env.action_space.n)
-        actions.append(action)
-        next_state, reward, done, _ = env.step(action.item())
-        rewards.append(reward)
-        total_reward += reward
-        state = next_state
-        if done:
-            break
-    print("rollout reward: ", rewards)
-    
-    # Compute the value estimates for each state using the model
-    values = []
-    for state, action in zip(states, actions):
-        state = state.unsqueeze(0)
-        value = target_net(state).detach().max(1)[0]
-        values.append(value)
-    print("rollout values: ", values)
-        
-    # Compute the discounted rewards
-    discounted_rewards = []
-    running_reward = 0
-    for reward in rewards[::-1]:
-        running_reward = reward + 0.99 * running_reward
-        discounted_rewards.insert(0, running_reward)
-    print("rollout discounted reward: ", discounted_rewards)
-        
-    # Normalize the discounted rewards
-    discounted_rewards = torch.tensor(discounted_rewards).float().to(device)
-    discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-5)
-    
-    # Compute the loss
-    loss = 0
-    for value, discounted_reward in zip(values, discounted_rewards):
-        loss += (value - discounted_reward) ** 2
-    print("loss: ", loss)
-        
-    return loss, total_reward
-
 
 ################################################################################################################
 # dqn
