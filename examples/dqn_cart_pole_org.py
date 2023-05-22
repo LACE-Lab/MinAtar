@@ -1,21 +1,5 @@
 ################################################################################################################
-# Authors:                                                                                                     #
-# Kenny Young (kjyoung@ualberta.ca)                                                                            #
-# Tian Tian(ttian@ualberta.ca)                                                                                 #
-#                                                                                                              #
-# python3 dqn.py -g <game>                                                                                     #
-#   -o, --output <directory/file name prefix>                                                                  #
-#   -v, --verbose: outputs the average returns every 1000 episodes                                             #
-#   -l, --loadfile <directory/file name of the saved model>                                                    #
-#   -a, --alpha <number>: step-size parameter                                                                  #
-#   -s, --save: save model data every 1000 episodes                                                            #
-#   -r, --replayoff: disable the replay buffer and train on each state transition                              #
-#   -t, --targetoff: disable the target network                                                                #
-#                                                                                                              #
-# References used for this implementation:                                                                     #
-#   https://pytorch.org/docs/stable/nn.html#                                                                   #
-#   https://pytorch.org/docs/stable/torch.html                                                                 #
-#   https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html                                   #
+# This file contains original DQN training with Cart Pole. It does not contain MVE.
 ################################################################################################################
 
 import torch
@@ -26,14 +10,11 @@ import torch.optim as optim
 import time
 import gym
 
-import random, numpy, argparse, logging, os
+import random, argparse, logging, os
 
 import numpy as np
-from tqdm import tqdm
 
 from collections import namedtuple
-from environment import Environment
-from velenvironment import Velenvironment
 
 ################################################################################################################
 # Constants
@@ -53,10 +34,20 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
+SEED=42
+
+# Set up the seed
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+    
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
-
 
 ################################################################################################################
 # class QNetwork
@@ -126,26 +117,6 @@ class replay_buffer:
 
 
 ################################################################################################################
-# get_state
-#
-# Converts the state given by the environment to a tensor of size (in_channel, 10, 10), and then
-# unsqueeze to expand along the 0th dimension so the function returns a tensor of size (1, in_channel, 10, 10).
-#
-# Input:
-#   s: current state as numpy array
-#
-# Output: current state as tensor, permuted to match expected dimensions
-#
-################################################################################################################
-def get_state(s):
-    return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
-
-def get_cont_state(cont_s, max_obj=40):
-    cont_s = np.array(cont_s)
-    return torch.tensor(cont_s, device=device).unsqueeze(0).unsqueeze(0).float()
-
-
-################################################################################################################
 # train
 #
 # This is where learning happens. More specifically, this function learns the weights of the policy network
@@ -212,7 +183,6 @@ def train(sample, policy_net, target_net, optimizer):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
     
 def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
@@ -317,17 +287,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         # Initialize the environment and start state
         cpu = True
         
-        if type(env.reset()) != numpy.ndarray:
+        if type(env.reset()) != np.ndarray:
             cpu = False
             s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         else:
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-        # s_cont = torch.tensor(env.reset(), device=device)
+        
         is_terminated = False
-        num_frame = 0
-        while (not is_terminated) and num_frame < 200:
-            if e % 500 == 0:
-                env.render()
+        while (not is_terminated):
             # Generate data
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
             
@@ -337,13 +304,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 s_cont_prime, reward, is_terminated, _ = env.step(action.item())
             s_cont_prime = s_cont_prime
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-            
-            # if s_cont_prime[1] > s_cont[1] and s_cont_prime[1] > 0 and s_cont[1] > 0:
-            #     reward += 15
-            # elif s_cont_prime[1] < s_cont[1] and s_cont_prime[1] <= 0 and s_cont[1] <= 0:
-            #     reward += 15
-            
-            # reward -= 20
 
             sample = None
             if replay_off:
@@ -361,13 +321,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
                     train(sample, policy_net, policy_net, optimizer)
-                    # print("rollouttime")
-                    # rollout(sample, env, policy_net, policy_net, H)
                 else:
                     policy_net_update_counter += 1
-                    # print("rollouttime")
                     train(sample, policy_net, target_net, optimizer)
-                    # rollout(sample, env, policy_net, target_net, H)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -379,8 +335,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             # Continue the process
             s_cont = s_cont_prime
-            num_frame += 1
-            # print(is_terminated, t)
 
         # Increment the episodes
         e += 1
@@ -393,7 +347,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 500 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
@@ -415,7 +369,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             }, output_file_name + "_checkpoint")
 
     # Print final logging info
-    logging.info("Avg return: " + str(numpy.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t))
+    logging.info("Avg return: " + str(np.around(avg_return, 2)) + " | Time per frame: " + str((time.time()-t_start)/t))
         
     # Write data to file
     torch.save({
@@ -452,6 +406,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("CartPole-v1")
+    env.seed(SEED)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
