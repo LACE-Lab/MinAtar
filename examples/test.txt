@@ -32,3 +32,8 @@ Episode 500 | Return: 10.0 | Avg return: 12.5 | Frame: 5460 | Time per frame: 0.
 Episode 500 | Return: 9.0 | Avg return: 20.67 | Frame: 7702 | Time per frame: 0.001258104784214413
 Episode 1000 | Return: 43.0 | Avg return: 26.58 | Frame: 14824 | Time per frame: 0.0012251600116507401
 Episode 1500 | Return: 158.0 | Avg return: 211.14 | Frame: 85163 | Time per frame: 0.00126416975498653
+Episode 100 | Return: 9.0 | Avg return: 8.58 | Frame: 1507 | Time per frame: 0.009018305207058224
+Episode 200 | Return: 9.0 | Avg return: 9.38 | Frame: 2488 | Time per frame: 0.0088311365754658
+Episode 300 | Return: 10.0 | Avg return: 9.68 | Frame: 3472 | Time per frame: 0.008655570893793062
+Episode 100 | Return: 9.0 | Avg return: 8.58 | Frame: 1507 | Time per frame: 0.008413985935203587
+Episode 500 | Return: 9.0 | Avg return: 20.67 | Frame: 7702 | Time per frame: 0.008689174742489411

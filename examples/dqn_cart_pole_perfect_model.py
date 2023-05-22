@@ -17,7 +17,6 @@ import gym
 import random, numpy, argparse, logging, os
 
 import numpy as np
-from tqdm import tqdm
 
 from collections import namedtuple
 from customCartPole import CustomCartPole
@@ -41,6 +40,17 @@ MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
+SEED=42
+
+# Set up the seed
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+    
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -131,26 +141,6 @@ class replay_buffer:
 
 
 ################################################################################################################
-# get_state
-#
-# Converts the state given by the environment to a tensor of size (in_channel, 10, 10), and then
-# unsqueeze to expand along the 0th dimension so the function returns a tensor of size (1, in_channel, 10, 10).
-#
-# Input:
-#   s: current state as numpy array
-#
-# Output: current state as tensor, permuted to match expected dimensions
-#
-################################################################################################################
-def get_state(s):
-    return (torch.tensor(s, device=device).permute(2, 0, 1)).unsqueeze(0).float()
-
-def get_cont_state(cont_s, max_obj=40):
-    cont_s = np.array(cont_s)
-    return torch.tensor(cont_s, device=device).unsqueeze(0).unsqueeze(0).float()
-
-
-################################################################################################################
 # train
 #
 # This is where learning happens. More specifically, this function learns the weights of the policy network
@@ -218,9 +208,11 @@ def train(sample, policy_net, target_net, optimizer):
     optimizer.step()
     
     
-def choose_action(epsilon, state, policy_net, n_actions):
+def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
     x = state.to(device).clone().detach().unsqueeze(0)
+    epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
+        else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
     
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
@@ -361,7 +353,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    criterion = nn.MSELoss()
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
 
     # Set initial values
@@ -422,14 +413,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         is_terminated = False
         
         while (not is_terminated):
-            if e % 100 == 0:
-                env.render()
             
             # Generate data
-            epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
-                else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-            
-            action = choose_action(epsilon, s_cont, policy_net, num_actions)
+            action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
 
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
@@ -454,11 +440,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
                     trainWithRollout(sample, policy_net, policy_net, optimizer, H)
-                    # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
                     trainWithRollout(sample, policy_net, target_net, optimizer, H)
-                    # train(sample, policy_net, target_net, optimizer)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -480,7 +464,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 100 == 0:
+        if e % 500 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
@@ -541,6 +525,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("CartPole-v1")
+    env.seed(SEED)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
