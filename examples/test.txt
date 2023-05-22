@@ -37,3 +37,12 @@ Episode 200 | Return: 9.0 | Avg return: 9.38 | Frame: 2488 | Time per frame: 0.0
 Episode 300 | Return: 10.0 | Avg return: 9.68 | Frame: 3472 | Time per frame: 0.008655570893793062
 Episode 100 | Return: 9.0 | Avg return: 8.58 | Frame: 1507 | Time per frame: 0.008413985935203587
 Episode 500 | Return: 9.0 | Avg return: 20.67 | Frame: 7702 | Time per frame: 0.008689174742489411
+Episode 100 | Return: 11.0 | Avg return: 7.5 | Frame: 1257 | Time per frame: 0.010458640285968402 | Env Model Loss: 0.33036601543426514 | Env Model State Loss: 0.024795323610305786 | Env Model Reward Loss: 0.02517237886786461 | Env Model Done Loss: 0.2784709632396698
+Episode 200 | Return: 9.0 | Avg return: 9.05 | Frame: 2246 | Time per frame: 0.01065800748334224 | Env Model Loss: 0.2589612305164337 | Env Model State Loss: 0.05198025330901146 | Env Model Reward Loss: 0.02513343095779419 | Env Model Done Loss: 0.17993389070034027
+Episode 300 | Return: 11.0 | Avg return: 9.62 | Frame: 3239 | Time per frame: 0.010914486254685895 | Env Model Loss: 0.25461408495903015 | Env Model State Loss: 0.06417393684387207 | Env Model Reward Loss: 0.03955164924263954 | Env Model Done Loss: 0.14898598194122314
+Episode 500 | Return: 10.0 | Avg return: 20.37 | Frame: 6979 | Time per frame: 0.011070753377118311 | Env Model Loss: 0.05882216617465019 | Env Model State Loss: 0.013473868370056152 | Env Model Reward Loss: 0.01506715826690197 | Env Model Done Loss: 0.028451599180698395
+Episode 500 | Return: 10.0 | Avg return: 20.37 | Frame: 6979 | Time per frame: 0.011860043566280594 | Env Model Loss: 0.05882216617465019 | Env Model State Loss: 0.013473868370056152 | Env Model Reward Loss: 0.01506715826690197 | Env Model Done Loss: 0.028451599180698395
+Episode 1000 | Return: 61.0 | Avg return: 15.59 | Frame: 12545 | Time per frame: 0.011817441132972326 | Env Model Loss: 0.15249912440776825 | Env Model State Loss: 0.005646349396556616 | Env Model Reward Loss: 0.0032173949293792248 | Env Model Done Loss: 0.14178630709648132
+Episode 100 | Return: 11.0 | Avg return: 7.5 | Frame: 1257 | Time per frame: 0.01147282910707363 | Env Model Loss: 0.019518664106726646
+Episode 100 | Return: 11.0 | Avg return: 7.5 | Frame: 1257 | Time per frame: 0.011152850320250056 | Env Model Loss: 0.019518664106726646
+Episode 200 | Return: 9.0 | Avg return: 9.05 | Frame: 2246 | Time per frame: 0.011498317374571666 | Env Model Loss: 0.051957596093416214

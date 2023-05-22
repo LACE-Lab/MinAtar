@@ -44,9 +44,20 @@ MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
+SEED = 42
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = torch.device("cpu")
+# Set up the seed
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+    
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 ################################################################################################################
 # class QNetwork
@@ -78,8 +89,6 @@ class QNetwork(pl.LightningModule, nn.Module):
     # As per implementation instructions according to pytorch, the forward function should be overwritten by all
     # subclasses
     def forward(self, x):
-        # print(x)
-
         # Rectified output from the final hidden layer
         x = self.fc_hidden(x)
 
@@ -214,16 +223,14 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    # # Learning rate scheduling
-    # if scheduler is not None:
-    #     scheduler.step()
-
     return loss
     
     
-def choose_action(epsilon, state, policy_net, n_actions):
+def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
     x = state.to(device).clone().detach().unsqueeze(0)
+    epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
+        else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
     
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
@@ -363,7 +370,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     in_channels = env.observation_space.shape[0]
@@ -447,14 +454,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         is_terminated = False
         
         while (not is_terminated):
-            if e % 100 == 0:
-                env.render()
-            
-            # Generate data
-            epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
-                else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-            
-            action = choose_action(epsilon, s_cont, policy_net, num_actions)
+            # Generate data  
+            action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
 
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
@@ -484,13 +485,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, H)
-                    # train(sample, policy_net, policy_net, optimizer)
+                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, H)
-                    # train(sample, policy_net, target_net, optimizer)
-
+                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
                 target_net.load_state_dict(policy_net.state_dict())
@@ -555,6 +554,7 @@ def main():
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
     parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
+    parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -575,9 +575,10 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("CartPole-v1")
+    env.seed(SEED)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout)
 
 
 if __name__ == '__main__':

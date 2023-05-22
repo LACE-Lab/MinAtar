@@ -336,7 +336,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H):
     torch.set_num_threads(1)
     # Get channels and number of actions specific to each game
     in_channels = env.observation_space.shape[0]
@@ -439,10 +439,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    trainWithRollout(sample, policy_net, policy_net, optimizer, H)
+                    trainWithRollout(sample, policy_net, policy_net, optimizer, rollout_constant)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample, policy_net, target_net, optimizer, H)
+                    trainWithRollout(sample, policy_net, target_net, optimizer, rollout_constant)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -505,6 +505,7 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha", "-a", type=float, default=STEP_SIZE)
+    parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -528,7 +529,7 @@ def main():
     env.seed(SEED)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout)
 
 
 if __name__ == '__main__':

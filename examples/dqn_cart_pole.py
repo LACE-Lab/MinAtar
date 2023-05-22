@@ -18,7 +18,6 @@ import gym
 import random, numpy, argparse, logging, os
 
 import numpy as np
-from tqdm import tqdm
 
 from collections import namedtuple
 from customCartPole import CustomCartPole
@@ -42,7 +41,18 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-H = 1 # rollout constant
+H = 3 # rollout constant
+SEED=42
+
+# Set up the seed
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+    
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -201,7 +211,7 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     # Compute the loss
     loss_state = f.mse_loss(predicted_next_states, next_states)
     loss_reward = f.mse_loss(predicted_rewards, rewards)
-    loss_done = f.binary_cross_entropy(predicted_dones, is_terminal)
+    loss_done = f.mse_loss(predicted_dones, is_terminal)
 
     loss = loss_state + loss_reward + loss_done
 
@@ -221,16 +231,14 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    # # Learning rate scheduling
-    # if scheduler is not None:
-    #     scheduler.step()
-
     return loss_state, loss_reward, loss_done, loss
     
     
-def choose_action(epsilon, state, policy_net, n_actions):
+def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
     x = state.to(device).clone().detach().unsqueeze(0)
+    epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
+        else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
     
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
@@ -280,8 +288,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     avg_list = torch.empty((0))
 
     for i in range(BATCH_SIZE):
-        cpu = False
-
         initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
         env_model.load_state(initial_state)
         
@@ -299,12 +305,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         env_model.load_state(next_state)
 
         for h in range(1, H):
-            if not done:
+            if done < 1:
                 action = choose_greedy_action(state, policy_net)
                 next_state, reward, done = env_model.step(action)
                 env_model.load_state(next_state)
+                print(done)
 
-                value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                value_list[h] = 0 if done >= 1 else target_net(next_state).max(0)[0].item()
                 reward_list[h] = reward
 
                 state = next_state
@@ -438,15 +445,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         is_terminated = False
         
-        while (not is_terminated):
-            if e % 100 == 0:
-                env.render()
-            
+        while (not is_terminated):            
             # Generate data
-            epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
-                else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-            
-            action = choose_action(epsilon, s_cont, policy_net, num_actions)
+            action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
 
             if cpu == False:
                 s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
@@ -503,7 +504,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 100 == 0:
+        if e % 500 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) +
                          " | Env Model State Loss: " + str(env_model_loss_state.item()) + " | Env Model Reward Loss: " + str(env_model_loss_reward.item()) +
@@ -571,6 +572,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("CartPole-v1")
+    env.seed(SEED)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2)

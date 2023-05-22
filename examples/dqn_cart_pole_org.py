@@ -34,7 +34,7 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-SEED=42
+SEED = 42
 
 # Set up the seed
 random.seed(SEED)
