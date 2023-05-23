@@ -46,3 +46,9 @@ Episode 1000 | Return: 61.0 | Avg return: 15.59 | Frame: 12545 | Time per frame:
 Episode 100 | Return: 11.0 | Avg return: 7.5 | Frame: 1257 | Time per frame: 0.01147282910707363 | Env Model Loss: 0.019518664106726646
 Episode 100 | Return: 11.0 | Avg return: 7.5 | Frame: 1257 | Time per frame: 0.011152850320250056 | Env Model Loss: 0.019518664106726646
 Episode 200 | Return: 9.0 | Avg return: 9.05 | Frame: 2246 | Time per frame: 0.011498317374571666 | Env Model Loss: 0.051957596093416214
+Episode 500 | Return: 17.0 | Avg return: 11.1 | Frame: 5240 | Time per frame: 0.0016457975365733373
+Episode 1000 | Return: 13.0 | Avg return: 15.97 | Frame: 15571 | Time per frame: 0.0014881215246493444
+Episode 1500 | Return: 155.0 | Avg return: 112.77 | Frame: 42789 | Time per frame: 0.0014414611998631616
+Episode 500 | Return: 10.0 | Avg return: 10.18 | Frame: 5032 | Time per frame: 0.0011432219669815088
+Episode 1000 | Return: 14.0 | Avg return: 10.01 | Frame: 10760 | Time per frame: 0.0012055307737513547
+Episode 500 | Return: 10.0 | Avg return: 10.18 | Frame: 5032 | Time per frame: 0.0010900081909707316

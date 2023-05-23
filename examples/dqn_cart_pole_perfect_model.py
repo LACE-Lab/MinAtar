@@ -42,16 +42,6 @@ EPSILON = 1
 H = 1 # rollout constant
 SEED=42
 
-# Set up the seed
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(SEED)
-    
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
@@ -336,8 +326,19 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H, seed=SEED):
+    
+    # Set up the seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
     torch.set_num_threads(1)
+    
     # Get channels and number of actions specific to each game
     in_channels = env.observation_space.shape[0]
     num_actions = env.action_space.n
@@ -506,6 +507,7 @@ def main():
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha", "-a", type=float, default=STEP_SIZE)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
+    parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -526,10 +528,10 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("CartPole-v1")
-    env.seed(SEED)
+    env.seed(args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout, args.seed)
 
 
 if __name__ == '__main__':
