@@ -29,10 +29,10 @@ from customCartPole import CustomCartPole
 #
 ################################################################################################################
 BATCH_SIZE = 32
-REPLAY_BUFFER_SIZE = 100000
+REPLAY_BUFFER_SIZE = 10000
 TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
-NUM_FRAMES = 5000000
+NUM_FRAMES = 100000
 FIRST_N_FRAMES = 100
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
