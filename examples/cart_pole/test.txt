@@ -1,0 +1,2 @@
+Episode 500 | Return: 19.0 | Avg return: 26.04 | Frame: 8929 | Time per frame: 0.011853541701995374 | Env Model Loss: 0.5565127925947309 | Env Model State Loss: 0.006233667954802513 | Env Model Reward Loss: 0.003881968092173338 | Done Model Loss: 0.54473477602005
+Episode 1000 | Return: 70.0 | Avg return: 50.85 | Frame: 25197 | Time per frame: 0.011910330271320636 | Env Model Loss: 0.484434493817389 | Env Model State Loss: 0.003524256404489279 | Env Model Reward Loss: 6.302684596448671e-07 | Done Model Loss: 0.4794556498527527

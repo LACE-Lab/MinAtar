@@ -96,7 +96,7 @@ class EnvModel(nn.Module):
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
         self.bn1 = nn.BatchNorm1d(hidden_size)  # Batch normalization for hidden layer
         self.dropout = nn.Dropout(0.1)  # Dropout layer with dropout rate 0.1
-        self.fc2 = nn.Linear(hidden_size, state_size + 2)
+        self.fc2 = nn.Linear(hidden_size, state_size + 1)
         
     def load_state(self, state):
         self.state = state.clone().detach()
@@ -112,28 +112,60 @@ class EnvModel(nn.Module):
         x = self.fc2(x)
         
         state = x[:, :self.state_size]
-        reward = x[:, -2:-1]
-        done = torch.sigmoid(x[:, -1:])
+        reward = x[:, -1:]
         
-        return state, reward, done
+        return state, reward
     
     def single_forward(self, x):
         x = self.fc1(x)
+        x = self.bn1(x)
         x = f.relu(x)
         x = self.dropout(x)  # Apply dropout
         x = self.fc2(x)
         
         state = x[:self.state_size]
-        reward = x[-2:-1]
-        done = torch.sigmoid(x[-1:])
+        reward = x[-1:]
         
-        return state, reward, done
+        return state, reward
     
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
-        predicted_next_state, predicted_reward, predicted_done = self.single_forward(state_action_pair)
-        return predicted_next_state, predicted_reward, predicted_done
+        predicted_next_state, predicted_reward = self.single_forward(state_action_pair)
+        return predicted_next_state, predicted_reward
+    
+class DoneModel(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=16):
+        super(DoneModel, self).__init__()
+        self.state_size = state_size
+        self.action_size = action_size
+        self.state = None
+        
+        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
+        self.bn1 = nn.BatchNorm1d(hidden_size)  # Batch normalization for hidden layer
+        self.dropout = nn.Dropout(0.1)  # Dropout layer with dropout rate 0.1
+        self.fc2 = nn.Linear(hidden_size, 1)
+        
+    def load_state(self, state):
+        self.state = state.clone().detach()
+
+    def save_state(self):
+        return self.state.clone().detach()
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.bn1(x)  # Apply batch normalization
+        x = f.relu(x)
+        x = self.dropout(x)  # Apply dropout
+        done = torch.sigmoid(self.fc2(x))
+        
+        return done
+    
+    def step(self, action):
+        one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
+        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
+        predicted_done = self.forward(state_action_pair)
+        return predicted_done
 
 ###########################################################################################################
 # class replay_buffer
@@ -187,7 +219,6 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
     rewards = torch.tensor(batch_samples.reward).to(device).reshape(BATCH_SIZE, 1)
-    is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1).type(torch.float32)
 
     # One-hot encode the actions
     one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
@@ -196,14 +227,13 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
 
     # Forward pass to get predicted next states, rewards, and done
-    predicted_next_states, predicted_rewards, predicted_dones = env_model(state_action_pairs)
+    predicted_next_states, predicted_rewards = env_model(state_action_pairs)
 
     # Compute the loss
     loss_state = f.mse_loss(predicted_next_states, next_states)
     loss_reward = f.mse_loss(predicted_rewards, rewards)
-    loss_done = f.mse_loss(predicted_dones, is_terminal)
 
-    loss = loss_state + loss_reward + loss_done
+    loss = loss_state + loss_reward
 
     # L2 regularization
     l2_reg = torch.tensor(0., device=device)
@@ -221,7 +251,47 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    return loss_state, loss_reward, loss_done, loss
+    return loss_state, loss_reward, loss
+
+def train_done_model(sample, done_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
+    batch_samples = transition(*zip(*sample))
+
+    states = torch.vstack((batch_samples.state)).to(device)
+
+    actions = torch.cat(batch_samples.action, 0)
+    actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
+
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1).type(torch.float32)
+
+    # One-hot encode the actions
+    one_hot_actions = torch.eye(done_model.action_size)[actions.squeeze().long()]
+
+    # Concatenate states and one-hot encoded actions
+    state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
+
+    # Forward pass to get predicted next states, rewards, and done
+    predicted_dones = done_model(state_action_pairs)
+
+    # Compute the loss
+    loss = f.binary_cross_entropy(predicted_dones, is_terminal)
+
+    # L2 regularization
+    l2_reg = torch.tensor(0., device=device)
+    for param in done_model.parameters():
+        l2_reg += torch.norm(param, p=2)
+    loss += weight_decay * l2_reg
+
+    # Zero gradients, backprop, and update the weights of env_model
+    optimizer.zero_grad()
+    loss.backward()
+
+    # Gradient clipping
+    if clip_grad is not None:
+        torch.nn.utils.clip_grad_norm_(done_model.parameters(), clip_grad)
+
+    optimizer.step()
+
+    return loss
     
     
 def choose_action(t, replay_start_size, state, policy_net, n_actions):
@@ -352,7 +422,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, seed=SEED):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout=H, seed=SEED):
     # Set up the seed
     random.seed(seed)
     np.random.seed(seed)
@@ -371,6 +441,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
     env_model = EnvModel(in_channels, num_actions).to(device)
+    done_model = DoneModel(in_channels, num_actions).to(device)
     
     replay_start_size = 0
     if not target_off:
@@ -383,6 +454,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size_policy, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
     env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size_env, weight_decay=WEIGHT_DECAY)
+    done_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size_env, weight_decay=WEIGHT_DECAY)
     # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size_env, gamma=GAMMA)
 
     # Set initial values
@@ -473,16 +545,15 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
-                env_model_loss_state, env_model_loss_reward, env_model_loss_done, env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
+                env_model_loss_state, env_model_loss_reward, env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
+                done_model_loss = train_done_model(sample_env, done_model, done_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, H)
-                    # train(sample, policy_net, policy_net, optimizer)
+                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, H)
-                    # train(sample, policy_net, target_net, optimizer)
+                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -508,14 +579,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) +
                          " | Env Model State Loss: " + str(env_model_loss_state.item()) + " | Env Model Reward Loss: " + str(env_model_loss_reward.item()) +
-                         " | Env Model Done Loss: " + str(env_model_loss_done.item()) 
+                         " | Done Model Loss: " + str(done_model_loss.item()) 
                         )                    
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) +
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()+done_model_loss.item()) +
                          " | Env Model State Loss: " + str(env_model_loss_state.item()) + " | Env Model Reward Loss: " + str(env_model_loss_reward.item()) +
-                         " | Env Model Done Loss: " + str(env_model_loss_done.item()) + "\n"
+                         " | Done Model Loss: " + str(done_model_loss.item()) + "\n"
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
@@ -555,6 +626,7 @@ def main():
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
     parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
+    parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
@@ -579,7 +651,7 @@ def main():
     env.seed(args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.seed)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)
 
 
 if __name__ == '__main__':
