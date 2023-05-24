@@ -472,6 +472,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
             f.close()
+            f = open(f"{output_file_name}.results", "a")
+            f.write(str(np.around(avg_return, 2)) + "\t" + str(t) + "\n")
+            f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
             torch.save({
