@@ -28,6 +28,7 @@ FIRST_N_FRAMES = 100
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.0001
+WEIGHT_DECAY = 0.0001
 GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
@@ -316,6 +317,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
                     sample = r_buffer.sample(BATCH_SIZE)
+                    sample_env = r_buffer.sample(BATCH_SIZE)
 
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:

@@ -360,7 +360,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #
 #################################################################################################################
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED):
-    
+    print(seed)
     # Set up the seed
     random.seed(seed)
     np.random.seed(seed)
@@ -479,16 +479,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     sample_policy = r_buffer.sample(BATCH_SIZE)
                     sample_env = r_buffer.sample(BATCH_SIZE)
 
-            # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample_env is not None:
-                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
-
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
                     trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
                 else:
                     policy_net_update_counter += 1
                     trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    
+            # Train every n number of frames defined by TRAINING_FREQ
+            if t % TRAINING_FREQ == 0 and sample_env is not None:
+                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
                     
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -510,7 +510,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 100 == 0:
+        if e % 500 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item())
                         )                    

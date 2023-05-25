@@ -309,7 +309,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
                 action = choose_greedy_action(state, policy_net)
                 next_state, reward, done = env_model.step(action)
                 env_model.load_state(next_state)
-                print(done)
 
                 value_list[h] = 0 if done >= 1 else target_net(next_state).max(0)[0].item()
                 reward_list[h] = reward
