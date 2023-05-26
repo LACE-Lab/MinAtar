@@ -1,2 +1,0 @@
-Episode 100 | Return: 16.0 | Avg return: 14.34 | Frame: 2310 | Time per frame: 0.010664834707846373 | Env Model Loss: 0.022052811458706856
-Episode 100 | Return: 16.0 | Avg return: 14.34 | Frame: 2310 | Time per frame: 0.010667411279884768 | Env Model Loss: 0.022052811458706856

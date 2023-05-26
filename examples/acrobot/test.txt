@@ -1,89 +1,29 @@
-Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.008490776062011719
-Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.008414700031280517
-Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.008402476151784261
-Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.008376661539077759
-Episode 5 | Return: -368.0 | Avg return: -23.18 | Frame: 2369 | Time per frame: 0.008484257077707828
-Episode 6 | Return: -282.0 | Avg return: -25.77 | Frame: 2652 | Time per frame: 0.008570578842680919
-Episode 7 | Return: -289.0 | Avg return: -28.41 | Frame: 2942 | Time per frame: 0.008602948678261078
-Episode 8 | Return: -500.0 | Avg return: -33.12 | Frame: 3442 | Time per frame: 0.008571156923470285
-Episode 9 | Return: -169.0 | Avg return: -34.48 | Frame: 3612 | Time per frame: 0.008568268017647407
-Episode 10 | Return: -346.0 | Avg return: -37.6 | Frame: 3959 | Time per frame: 0.008554234893733307
-Episode 11 | Return: -500.0 | Avg return: -42.22 | Frame: 4459 | Time per frame: 0.008538792341325978
-Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.007393355369567871
-Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.008300066709518432
-Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.008454216480255126
-Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.00843849790096283
-Episode 5 | Return: -368.0 | Avg return: -23.18 | Frame: 2369 | Time per frame: 0.008443605250676205
-Episode 6 | Return: -282.0 | Avg return: -25.77 | Frame: 2652 | Time per frame: 0.008461312920439477
-Episode 7 | Return: -289.0 | Avg return: -28.41 | Frame: 2942 | Time per frame: 0.008452791247053426
-Episode 8 | Return: -500.0 | Avg return: -33.12 | Frame: 3442 | Time per frame: 0.00843104001465819
-Episode 9 | Return: -169.0 | Avg return: -34.48 | Frame: 3612 | Time per frame: 0.008442354558710244
-Episode 10 | Return: -346.0 | Avg return: -37.6 | Frame: 3959 | Time per frame: 0.008443359896280934
-Episode 11 | Return: -500.0 | Avg return: -42.22 | Frame: 4459 | Time per frame: 0.008447886261872631
-Episode 12 | Return: -497.0 | Avg return: -46.77 | Frame: 4957 | Time per frame: 0.00844039391769092
-Episode 13 | Return: -500.0 | Avg return: -51.3 | Frame: 5457 | Time per frame: 0.008436086480600484
-Episode 14 | Return: -358.0 | Avg return: -54.37 | Frame: 5816 | Time per frame: 0.008428724546707973
-Episode 15 | Return: -498.0 | Avg return: -58.8 | Frame: 6315 | Time per frame: 0.008423834458666006
-Episode 16 | Return: -361.0 | Avg return: -61.82 | Frame: 6677 | Time per frame: 0.008407707929932572
-Episode 17 | Return: -433.0 | Avg return: -65.54 | Frame: 7111 | Time per frame: 0.008409698038660445
-Episode 18 | Return: -209.0 | Avg return: -66.97 | Frame: 7321 | Time per frame: 0.008401603585399414
-Episode 19 | Return: -449.0 | Avg return: -70.79 | Frame: 7771 | Time per frame: 0.008394014787802809
-Episode 20 | Return: -270.0 | Avg return: -72.78 | Frame: 8042 | Time per frame: 0.00838456625844732
-Episode 21 | Return: -391.0 | Avg return: -75.97 | Frame: 8434 | Time per frame: 0.00837488176699976
-Episode 22 | Return: -357.0 | Avg return: -78.78 | Frame: 8792 | Time per frame: 0.00836803955962378
-Episode 23 | Return: -249.0 | Avg return: -80.48 | Frame: 9042 | Time per frame: 0.008361643432806192
-Episode 24 | Return: -500.0 | Avg return: -84.67 | Frame: 9542 | Time per frame: 0.008363355357950275
-Episode 25 | Return: -273.0 | Avg return: -86.56 | Frame: 9816 | Time per frame: 0.008368764063548343
-Episode 26 | Return: -299.0 | Avg return: -88.68 | Frame: 10116 | Time per frame: 0.008369187702534933
-Episode 27 | Return: -356.0 | Avg return: -91.35 | Frame: 10473 | Time per frame: 0.008362688604380537
-Episode 28 | Return: -170.0 | Avg return: -92.14 | Frame: 10644 | Time per frame: 0.008360028625296185
-Episode 29 | Return: -238.0 | Avg return: -93.6 | Frame: 10883 | Time per frame: 0.008355615157190736
-Episode 30 | Return: -213.0 | Avg return: -94.79 | Frame: 11097 | Time per frame: 0.00835953869991091
-Episode 31 | Return: -256.0 | Avg return: -96.41 | Frame: 11354 | Time per frame: 0.008358959814014202
-Episode 32 | Return: -348.0 | Avg return: -98.92 | Frame: 11703 | Time per frame: 0.008352754748214935
-Episode 33 | Return: -387.0 | Avg return: -101.8 | Frame: 12091 | Time per frame: 0.008348106164690106
-Episode 34 | Return: -304.0 | Avg return: -103.82 | Frame: 12396 | Time per frame: 0.008359588492720617
-Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.009512022018432617 | Env Model Loss: 0.0281209833920002
-Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.010173886060714721 | Env Model Loss: 0.05511556565761566
-Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.010406784057617188 | Env Model Loss: 0.10006406903266907
-Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.010524543523788453 | Env Model Loss: 0.033964067697525024
-Episode 5 | Return: -368.0 | Avg return: -23.18 | Frame: 2369 | Time per frame: 0.010594668193123118 | Env Model Loss: 0.1065792664885521
-Episode 6 | Return: -282.0 | Avg return: -25.77 | Frame: 2652 | Time per frame: 0.010634789909172921 | Env Model Loss: 0.3853439390659332
-Episode 7 | Return: -289.0 | Avg return: -28.41 | Frame: 2942 | Time per frame: 0.010672102000419985 | Env Model Loss: 0.09506593644618988
-Episode 8 | Return: -500.0 | Avg return: -33.12 | Frame: 3442 | Time per frame: 0.010694703690053972 | Env Model Loss: 0.09497527778148651
-Episode 9 | Return: -169.0 | Avg return: -34.48 | Frame: 3612 | Time per frame: 0.010712918649084148 | Env Model Loss: 0.4118199646472931
-Episode 10 | Return: -346.0 | Avg return: -37.6 | Frame: 3959 | Time per frame: 0.01071365417389895 | Env Model Loss: 0.30558592081069946
-Episode 11 | Return: -500.0 | Avg return: -42.22 | Frame: 4459 | Time per frame: 0.01073729892995064 | Env Model Loss: 0.1486077457666397
-Episode 12 | Return: -497.0 | Avg return: -46.77 | Frame: 4957 | Time per frame: 0.010763732324522879 | Env Model Loss: 0.12460306286811829
-Episode 13 | Return: -500.0 | Avg return: -51.3 | Frame: 5457 | Time per frame: 0.010768305104098217 | Env Model Loss: 0.05752106383442879
-Episode 14 | Return: -358.0 | Avg return: -54.37 | Frame: 5816 | Time per frame: 0.010781368822310289 | Env Model Loss: 0.17712636291980743
-Episode 15 | Return: -498.0 | Avg return: -58.8 | Frame: 6315 | Time per frame: 0.010785598105508377 | Env Model Loss: 0.09281129390001297
-Episode 16 | Return: -361.0 | Avg return: -61.82 | Frame: 6677 | Time per frame: 0.01080990655346868 | Env Model Loss: 0.05759000778198242
-Episode 17 | Return: -433.0 | Avg return: -65.54 | Frame: 7111 | Time per frame: 0.010816071845193969 | Env Model Loss: 0.11165465414524078
-Episode 18 | Return: -209.0 | Avg return: -66.97 | Frame: 7321 | Time per frame: 0.010819704248318662 | Env Model Loss: 0.2858372628688812
-Episode 19 | Return: -449.0 | Avg return: -70.79 | Frame: 7771 | Time per frame: 0.010820799514511318 | Env Model Loss: 0.06843100488185883
-Episode 20 | Return: -270.0 | Avg return: -72.78 | Frame: 8042 | Time per frame: 0.01082404301374654 | Env Model Loss: 0.208957701921463
-Episode 21 | Return: -391.0 | Avg return: -75.97 | Frame: 8434 | Time per frame: 0.01083065495548696 | Env Model Loss: 0.04984504356980324
-Episode 22 | Return: -357.0 | Avg return: -78.78 | Frame: 8792 | Time per frame: 0.010827888972765756 | Env Model Loss: 0.23787720501422882
-Episode 23 | Return: -249.0 | Avg return: -80.48 | Frame: 9042 | Time per frame: 0.01082830425385642 | Env Model Loss: 0.1024833396077156
-Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.009528967380523681 | Env Model Loss: 0.0281209833920002
-Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.010248686790466309 | Env Model Loss: 0.05511556565761566
-Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.010539618651072185 | Env Model Loss: 0.10006406903266907
-Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.010722017884254455 | Env Model Loss: 0.033964067697525024
-Episode 5 | Return: -368.0 | Avg return: -23.18 | Frame: 2369 | Time per frame: 0.010790897854877052 | Env Model Loss: 0.1065792664885521
-Episode 6 | Return: -282.0 | Avg return: -25.77 | Frame: 2652 | Time per frame: 0.01084583179623473 | Env Model Loss: 0.3853439390659332
-Episode 7 | Return: -289.0 | Avg return: -28.41 | Frame: 2942 | Time per frame: 0.01084939798151531 | Env Model Loss: 0.09506593644618988
-Episode 8 | Return: -500.0 | Avg return: -33.12 | Frame: 3442 | Time per frame: 0.01087488953558807 | Env Model Loss: 0.09497527778148651
-Episode 9 | Return: -169.0 | Avg return: -34.48 | Frame: 3612 | Time per frame: 0.010899221184245772 | Env Model Loss: 0.4118199646472931
-Episode 10 | Return: -346.0 | Avg return: -37.6 | Frame: 3959 | Time per frame: 0.010931665290934657 | Env Model Loss: 0.30558592081069946
-Episode 11 | Return: -500.0 | Avg return: -42.22 | Frame: 4459 | Time per frame: 0.010946581304327312 | Env Model Loss: 0.1486077457666397
-Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.03137348985671997 | Env Model Loss: 1.3372568488121033 | Env Model State Loss: 0.522901713848114 | Env Model Reward Loss: 0.04844694212079048 | Done Model Loss: 0.7639781832695007
-Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.03298830103874206 | Env Model Loss: 1.0870760679244995 | Env Model State Loss: 0.26646292209625244 | Env Model Reward Loss: 0.04606049507856369 | Done Model Loss: 0.7726160287857056
-Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.03281914536158244 | Env Model Loss: 0.886355847120285 | Env Model State Loss: 0.07593433558940887 | Env Model Reward Loss: 0.033985596150159836 | Done Model Loss: 0.7745265960693359
-Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.03273181045055389 | Env Model Loss: 0.9336262345314026 | Env Model State Loss: 0.1600981056690216 | Env Model Reward Loss: 0.019512223079800606 | Done Model Loss: 0.7521384358406067
-Episode 5 | Return: -500.0 | Avg return: -24.5 | Frame: 2500 | Time per frame: 0.03265478553771973 | Env Model Loss: 0.8857875466346741 | Env Model State Loss: 0.11438248306512833 | Env Model Reward Loss: 0.016758112236857414 | Done Model Loss: 0.7527977824211121
-Episode 6 | Return: -500.0 | Avg return: -29.26 | Frame: 3000 | Time per frame: 0.03262173970540365 | Env Model Loss: 0.9185680001974106 | Env Model State Loss: 0.1375943422317505 | Env Model Reward Loss: 0.009304532781243324 | Done Model Loss: 0.7698440551757812
-Episode 7 | Return: -500.0 | Avg return: -33.97 | Frame: 3500 | Time per frame: 0.03273915427071707 | Env Model Loss: 0.8571169674396515 | Env Model State Loss: 0.07317404448986053 | Env Model Reward Loss: 0.011503370478749275 | Done Model Loss: 0.7706355452537537
-Episode 8 | Return: -164.0 | Avg return: -35.27 | Frame: 3665 | Time per frame: 0.03274130834238591 | Env Model Loss: 0.870112732052803 | Env Model State Loss: 0.11226099729537964 | Env Model Reward Loss: 0.008869213983416557 | Done Model Loss: 0.747181236743927
-Episode 9 | Return: -212.0 | Avg return: -37.03 | Frame: 3878 | Time per frame: 0.032712122470586184 | Env Model Loss: 0.8754385858774185 | Env Model State Loss: 0.1208874061703682 | Env Model Reward Loss: 0.010579158551990986 | Done Model Loss: 0.7421701550483704
-Episode 10 | Return: -280.0 | Avg return: -39.46 | Frame: 4159 | Time per frame: 0.032732193560002946 | Env Model Loss: 0.8420625925064087 | Env Model State Loss: 0.06437253952026367 | Env Model Reward Loss: 0.008202708326280117 | Done Model Loss: 0.7676845788955688
+Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.01148514175415039 | Env Model Loss: 1.217633843421936
+Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.012290693044662475 | Env Model Loss: 0.7125917077064514
+Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.01248349666595459 | Env Model Loss: 0.575865626335144
+Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.012587069511413574 | Env Model Loss: 0.7252160906791687
+Episode 5 | Return: -500.0 | Avg return: -24.5 | Frame: 2500 | Time per frame: 0.012653806400299072 | Env Model Loss: 0.6595659852027893
+Episode 6 | Return: -500.0 | Avg return: -29.26 | Frame: 3000 | Time per frame: 0.012695899645487467 | Env Model Loss: 0.6096497178077698
+Episode 7 | Return: -500.0 | Avg return: -33.97 | Frame: 3500 | Time per frame: 0.012742758001599993 | Env Model Loss: 0.6281642913818359
+Episode 8 | Return: -356.0 | Avg return: -37.19 | Frame: 3857 | Time per frame: 0.01278467044825377 | Env Model Loss: 0.4754165709018707
+Episode 9 | Return: -500.0 | Avg return: -41.82 | Frame: 4357 | Time per frame: 0.012817849416866306 | Env Model Loss: 0.6904470324516296
+Episode 10 | Return: -345.0 | Avg return: -44.85 | Frame: 4703 | Time per frame: 0.012842238164825083 | Env Model Loss: 0.681583821773529
+Episode 11 | Return: -451.0 | Avg return: -48.91 | Frame: 5155 | Time per frame: 0.012853634924014486 | Env Model Loss: 0.7003114223480225
+Episode 12 | Return: -320.0 | Avg return: -51.62 | Frame: 5476 | Time per frame: 0.01287239315389629 | Env Model Loss: 0.8000290393829346
+Episode 13 | Return: -242.0 | Avg return: -53.52 | Frame: 5719 | Time per frame: 0.012877871302754588 | Env Model Loss: 0.7476794719696045
+Episode 14 | Return: -383.0 | Avg return: -56.82 | Frame: 6103 | Time per frame: 0.012879098182464455 | Env Model Loss: 0.6840917468070984
+Episode 15 | Return: -364.0 | Avg return: -59.89 | Frame: 6468 | Time per frame: 0.012882560915466289 | Env Model Loss: 0.9204390048980713
+Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.014787293910980225 | Env Model Loss: 2.2490336894989014
+Episode 2 | Return: -500.0 | Avg return: -9.95 | Frame: 1000 | Time per frame: 0.015555361747741699 | Env Model Loss: 1.3575187921524048
+Episode 3 | Return: -500.0 | Avg return: -14.85 | Frame: 1500 | Time per frame: 0.015569642702738444 | Env Model Loss: 1.2083061933517456
+Episode 4 | Return: -500.0 | Avg return: -19.7 | Frame: 2000 | Time per frame: 0.01571978497505188 | Env Model Loss: 1.433611512184143
+Episode 5 | Return: -500.0 | Avg return: -24.5 | Frame: 2500 | Time per frame: 0.015710213565826418 | Env Model Loss: 1.3078968524932861
+Episode 6 | Return: -500.0 | Avg return: -29.26 | Frame: 3000 | Time per frame: 0.015547276258468627 | Env Model Loss: 1.285018801689148
+Episode 7 | Return: -500.0 | Avg return: -33.97 | Frame: 3500 | Time per frame: 0.015421661717551095 | Env Model Loss: 1.207632303237915
+Episode 8 | Return: -356.0 | Avg return: -37.19 | Frame: 3857 | Time per frame: 0.015335319633770706 | Env Model Loss: 0.9664117097854614
+Episode 9 | Return: -500.0 | Avg return: -41.82 | Frame: 4357 | Time per frame: 0.015429230384222543 | Env Model Loss: 1.4851903915405273
+Episode 10 | Return: -345.0 | Avg return: -44.85 | Frame: 4703 | Time per frame: 0.01551310397096829 | Env Model Loss: 1.3429688215255737
+Episode 11 | Return: -451.0 | Avg return: -48.91 | Frame: 5155 | Time per frame: 0.015506474238709265 | Env Model Loss: 1.3475494384765625
+Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.01490387773513794 | Env Model Loss: 2.2490336894989014
+Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.014158092021942138 | Env Model Loss: 2.2490336894989014
+Episode 1 | Return: -500.0 | Avg return: -5.0 | Frame: 500 | Time per frame: 0.03410534048080444 | Env Model Loss: 0.5998467803001404
