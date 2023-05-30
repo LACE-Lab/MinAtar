@@ -15,14 +15,16 @@ class CustomAcrobot(AcrobotEnv):
         self.state = np.array([theta1, theta2, theta1dot, theta2dot], dtype=np.float32)
 
     def step(self, action):
-        state, reward, done, _, _ = super().step(action)
-        self.state = state
-        return self.get_obs(), reward, done, {}, {}
+        state, reward, terminated, truncated, _ = super().step(action)
+        self.state = np.array(state)
+        return self.get_obs(), reward, terminated, truncated, {}
 
     def reset(self):
-        self.state = super().reset()
+        self.state = np.array(super().reset())
         return self.get_obs()
         
     def get_obs(self):
         s = self.state
+        if isinstance(s, dict): # Added for debugging. Remove this check if the error does not occur.
+            print(f"Unexpected state type: {type(s)}, value: {s}")
         return np.array([np.cos(s[0]), np.sin(s[0]), np.cos(s[1]), np.sin(s[1]), s[2], s[3]])
