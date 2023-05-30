@@ -42,8 +42,8 @@ EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = torch.device("cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 ################################################################################################################
 # class QNetwork
@@ -210,7 +210,7 @@ def choose_action(t, replay_start_size, state, policy_net, n_actions):
 
     else: # greedy
         actions_value = policy_net(x) # score of actions
-        action = torch.max(actions_value, 1)[1].data.numpy() # pick the highest one
+        action = torch.max(actions_value, 1)[1].cpu().data.numpy() # pick the highest one
         action = torch.tensor(action).to(device)
 
     return action
