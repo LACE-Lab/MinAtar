@@ -32,7 +32,7 @@ REPLAY_BUFFER_SIZE = 10000
 TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 100000
-FIRST_N_FRAMES = 100
+FIRST_N_FRAMES = 5000
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.003
@@ -90,15 +90,13 @@ class QuantileEnvModel(nn.Module):
         super(QuantileEnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
-        self.state = None
         self.quantiles = quantiles
         self.num_quantiles = len(quantiles)
 
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
-        self.bn1 = nn.BatchNorm1d(hidden_size)
         self.dropout = nn.Dropout(0.1)
-
         self.fc2 = nn.Linear(hidden_size, len(quantiles) * state_size)
+        self.fc3 = nn.Linear(hidden_size, state_size)
 
     def load_state(self, state):
         self.state = state.clone().detach()
@@ -106,37 +104,24 @@ class QuantileEnvModel(nn.Module):
     def save_state(self):
         return self.state.clone().detach()
 
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.bn1(x)
+    def forward(self, state_action_pair):
+        x = self.fc1(state_action_pair)
         x = f.relu(x)
         x = self.dropout(x)
-        x = self.fc2(x)
-        state = x[:, :self.state_size * self.num_quantiles]
+        quantile_outputs = self.fc2(x).view(self.state_size, self.num_quantiles)
+        mean_outputs = self.fc3(x).squeeze(0)  # remove batch dimension
         
-        return state
-
-    def single_forward(self, x):
-        x = self.fc1(x)
-        x = f.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-        state = x[:self.state_size * self.num_quantiles]
-        
-        return state
+        return quantile_outputs, mean_outputs
 
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
-        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
-        predicted_next_state_quantiles = self.single_forward(state_action_pair)
-        
-        # Reshape the output to separate the quantiles
-        predicted_next_state_quantiles = predicted_next_state_quantiles.view(self.state_size, self.num_quantiles)
-        
-        # Select the means (50% quantiles)
-        predicted_next_state_means = predicted_next_state_quantiles[:, self.num_quantiles // 2]
-        predicted_next_state_min = predicted_next_state_quantiles[:, 0]
-        predicted_next_state_max = predicted_next_state_quantiles[:, -1]
+        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1).unsqueeze(0)
+
+        quantile_outputs,  = self.forward(state_action_pair)
+
+        predicted_next_state_means = mean_outputs
+        predicted_next_state_min = quantile_outputs[:, 0]
+        predicted_next_state_max = quantile_outputs[:, -1]
         
         return predicted_next_state_means, predicted_next_state_min, predicted_next_state_max
 
@@ -234,7 +219,8 @@ def choose_action(t, replay_start_size, state, policy_net, n_actions):
     x = state.to(device).clone().detach().unsqueeze(0)
     epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
         else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-    
+    if t> FIRST_N_FRAMES:
+        print(epsilon)
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
         action = torch.tensor([random.randint(0, n_actions-1)]).to(device)
@@ -388,6 +374,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Set up the seed
     random.seed(seed)
     np.random.seed(seed)
+    seed_rng = np.random.default_rng(seed=seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -468,12 +455,13 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Initialize the environment and start state
         cpu = True
+        new_seed = int(seed_rng.integers(low=0, high=2**32 - 1))
         
-        if type(env.reset()) != numpy.ndarray:
+        if type(env.reset(seed=new_seed)) != numpy.ndarray:
             cpu = False
-            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+            s_cont = torch.tensor(env.reset(seed=new_seed)[0], dtype=torch.float32).to(device)
         else:
-            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+            s_cont = torch.tensor(env.reset(seed=new_seed), dtype=torch.float32).to(device)
 
         is_terminated = False
         
@@ -603,7 +591,6 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("Acrobot-v1")
-    env.seed(args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)

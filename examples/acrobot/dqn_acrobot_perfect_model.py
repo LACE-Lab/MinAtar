@@ -8,7 +8,7 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.optim as optim
 import time
@@ -188,7 +188,7 @@ def train(sample, policy_net, target_net, optimizer):
     target = rewards + GAMMA * Q_s_prime_a_prime
 
     # Huber loss
-    loss = f.mse_loss(target,Q_s_a)
+    loss = F.mse_loss(target,Q_s_a)
     # loss = f.smooth_l1_loss(target, Q_s_a)
     # print(loss)
 
@@ -228,7 +228,8 @@ def choose_greedy_action(state, policy_net):
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
-    env.reset()
+    env.reset(seed=SEED)
+    print(env.state)
 
     batch_samples = transition(*zip(*sample))
 
@@ -243,67 +244,78 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 
     Q_s_a = policy_net(states).gather(1, actions)
 
-    avg_list = torch.empty((0))
+    if H == 1:
+        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
+        none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+        none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+        Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
+        if len(none_terminal_next_states) != 0:
+            Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+        target = rewards + GAMMA * Q_s_prime_a_prime
+   
+    else:
+        target = torch.empty((0))
 
-    for i in range(BATCH_SIZE):
-        cpu = False
+        for i in range(BATCH_SIZE):
+            cpu = False
 
-        initial_state = batch_samples.state[i].numpy()
-        env.set_state(initial_state)
-        
-        state = states[i]
-        next_state = next_states[i]
-        done = is_terminal[i]
+            initial_state = batch_samples.state[i].numpy()
+            env.set_state(initial_state)
+            
+            state = states[i]
+            next_state = next_states[i]
+            done = is_terminal[i]
 
-        reward_list = torch.zeros(H).to(device)
-        value_list = torch.zeros(H).to(device)
-        
-        reward_list[0] = rewards[i]
-        value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-        
-        env.set_state(batch_samples.next_state[i].numpy())
+            reward_list = torch.zeros(H).to(device)
+            value_list = torch.zeros(H).to(device)
+            
+            reward_list[0] = rewards[i]
+            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+            
+            env.set_state(batch_samples.next_state[i].numpy())
 
-        for h in range(1, H):
-            if not done:
-                action = choose_greedy_action(state, policy_net)
-                
-                if cpu == False:
-                    next_state, reward, done, _, _ = env.step(action.item())
+            for h in range(1, H):
+                if not done:
+                    action = choose_greedy_action(state, policy_net)
+                    
+                    if cpu == False:
+                        next_state, reward, done, _, _ = env.step(action.item())
+                    else:
+                        next_state, reward, done, _ = env.step(action.item())
+                    
+                    env.set_state(next_state)
+                    next_state = torch.Tensor(next_state).to(device)
+
+                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                    reward_list[h] = reward
+
+                    state = next_state
                 else:
-                    next_state, reward, done, _ = env.step(action.item())
-                
-                env.set_state(next_state)
-                next_state = torch.Tensor(next_state).to(device)
+                    break
 
-                value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
-                reward_list[h] = reward
+            # Create a tensor with indices for the power operation
+            indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
+            indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
 
-                state = next_state
-            else:
-                break
+            # Compute the gamma powers
+            gamma_powers = GAMMA ** indices
+            gamma_powers_val = GAMMA ** indices_val
 
-        # Create a tensor with indices for the power operation
-        indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
-        indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+            # Calculate the discounted rewards
+            running_reward = (gamma_powers * reward_list).cumsum(dim=1)
+            discounted_rewards = running_reward + gamma_powers_val * value_list
 
-        # Compute the gamma powers
-        gamma_powers = GAMMA ** indices
-        gamma_powers_val = GAMMA ** indices_val
+            # Calculate the average
+            avg = discounted_rewards.mean()
+            avg = torch.Tensor([avg.item()]).detach()
 
-        # Calculate the discounted rewards
-        running_reward = (gamma_powers * reward_list).cumsum(dim=1)
-        discounted_rewards = running_reward + gamma_powers_val * value_list
+            target = torch.cat((target, avg)).detach()
 
-        # Calculate the average
-        avg = discounted_rewards.mean()
-        avg = torch.Tensor([avg.item()]).detach()
+        target.requires_grad = True
+        target = target.reshape(BATCH_SIZE, 1)
 
-        avg_list = torch.cat((avg_list, avg)).detach()
-
-    avg_list.requires_grad = True
-    avg_list = avg_list.reshape(BATCH_SIZE, 1)
-
-    loss = f.mse_loss(Q_s_a, avg_list)
+    print(target)
+    loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
     loss.backward()
@@ -313,17 +325,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 # dqn
 #
 # DQN algorithm with the option to disable replay and/or target network, and the function saves the training data.
-#
-# Inputs:
-#   env: environment of the game
-#   replay_off: disable the replay buffer and train on each state transition
-#   target_off: disable target network
-#   output_file_name: directory and file name prefix to output data and network weights, file saved as 
-#       <output_file_name>_data_and_weights
-#   store_intermediate_result: a boolean, if set to true will store checkpoint data every 1000 episodes
-#       to a file named <output_file_name>_checkpoint
-#   load_path: file path for a checkpoint to load, and continue training from
-#   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H, seed=SEED):
@@ -446,9 +447,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
                     trainWithRollout(sample, policy_net, policy_net, optimizer, rollout_constant)
+                    # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
                     trainWithRollout(sample, policy_net, target_net, optimizer, rollout_constant)
+                    # train(sample, policy_net, policy_net, optimizer)
 
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -536,7 +539,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("Acrobot-v1")
-    env.seed(args.seed)
+    env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout, args.seed)

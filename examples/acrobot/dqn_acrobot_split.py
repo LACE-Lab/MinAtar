@@ -447,6 +447,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Set up the seed
     random.seed(seed)
     np.random.seed(seed)
+    seed_rng = np.random.default_rng(seed=seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -529,12 +530,13 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Initialize the environment and start state
         cpu = True
+        new_seed = int(seed_rng.integers(low=0, high=2**32 - 1))
         
-        if type(env.reset()) != numpy.ndarray:
+        if type(env.reset(seed=new_seed)) != numpy.ndarray:
             cpu = False
-            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+            s_cont = torch.tensor(env.reset(seed=new_seed)[0], dtype=torch.float32).to(device)
         else:
-            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
+            s_cont = torch.tensor(env.reset(seed=new_seed), dtype=torch.float32).to(device)
 
         is_terminated = False
         
@@ -669,7 +671,6 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("Acrobot-v1")
-    env.seed(args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)

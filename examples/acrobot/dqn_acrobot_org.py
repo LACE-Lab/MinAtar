@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.optim as optim
 import time
@@ -21,9 +21,9 @@ from collections import namedtuple
 ################################################################################################################
 BATCH_SIZE = 32
 REPLAY_BUFFER_SIZE = 10000
-TARGET_NETWORK_UPDATE_FREQ = 256
+TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
-NUM_FRAMES = 10000000
+NUM_FRAMES = 100000
 FIRST_N_FRAMES = 100
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
@@ -32,7 +32,7 @@ WEIGHT_DECAY = 0.0001
 GRAD_MOMENTUM = 0.95
 SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
-GAMMA = 1.0
+GAMMA = 0.99
 EPSILON = 1
 SEED = 42
 
@@ -111,13 +111,7 @@ class replay_buffer:
 #
 # This is where learning happens. More specifically, this function learns the weights of the policy network
 # using huber loss.
-#
-# Inputs:
-#   sample: a batch of size 1 or 32 transitions
-#   policy_net: an instance of QNetwork
-#   target_net: an instance of QNetwork
-#   optimizer: centered RMSProp
-#
+
 ################################################################################################################
 def train(sample, policy_net, target_net, optimizer):
     # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
@@ -164,8 +158,8 @@ def train(sample, policy_net, target_net, optimizer):
     # Compute the target
     target = rewards + GAMMA * Q_s_prime_a_prime
 
-    # Huber loss
-    loss = f.mse_loss(target,Q_s_a)
+    loss = F.mse_loss(target,Q_s_a)
+    
     # loss = f.smooth_l1_loss(target, Q_s_a)
     # print(loss)
 
@@ -195,18 +189,7 @@ def choose_action(t, replay_start_size, state, policy_net, n_actions):
 # dqn
 #
 # DQN algorithm with the option to disable replay and/or target network, and the function saves the training data.
-#
-# Inputs:
-#   env: environment of the game
-#   replay_off: disable the replay buffer and train on each state transition
-#   target_off: disable target network
-#   output_file_name: directory and file name prefix to output data and network weights, file saved as 
-#       <output_file_name>_data_and_weights
-#   store_intermediate_result: a boolean, if set to true will store checkpoint data every 1000 episodes
-#       to a file named <output_file_name>_checkpoint
-#   load_path: file path for a checkpoint to load, and continue training from
-#   step_size: step-size for RMSProp optimizer
-#
+
 #################################################################################################################
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, seed=SEED):
     # Set up the results file
@@ -296,7 +279,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         else:
             s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-        
+
         is_terminated = False
         while (not is_terminated):
             # Generate data
@@ -350,7 +333,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Logging exponentiated return only when verbose is turned on and only at 1000 episode intervals
         avg_return = 0.99 * avg_return + 0.01 * G
-        if e % 5 == 0:
+        if e % 1 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
@@ -415,7 +398,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("Acrobot-v1")
-    env.seed(args.seed)
+    env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.seed)
