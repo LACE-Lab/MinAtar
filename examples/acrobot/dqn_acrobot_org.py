@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.optim as optim
 import time
-import gym
+import gymnasium as gym
 
 import random, argparse, logging, os
 
@@ -272,23 +272,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        cpu = True
-        
-        if type(env.reset()) != np.ndarray:
-            cpu = False
-            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
-        else:
-            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-
+        s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
+        
         while (not is_terminated):
             # Generate data
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
-            
-            if cpu == False:
-                s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
-            else:
-                s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+            s_cont_prime, reward, terminated, truncated, _ = env.step(action.item())
+            is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 

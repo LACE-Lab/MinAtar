@@ -14,12 +14,12 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.optim as optim
 import time
-import gym
+import gymnasium as gym
 
 import random, numpy, argparse, logging, os
 
 import numpy as np
-from tqdm import tqdm
+
 
 from collections import namedtuple
 from customAcrobot import CustomAcrobot
@@ -245,7 +245,7 @@ def choose_greedy_action(state, policy_net):
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
-    env.reset(seed=SEED)
+    env.reset()
     
     # Initialize the environment model
     in_channels = env.observation_space.shape[0]
@@ -279,10 +279,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
         target = torch.empty((0))
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
+            env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
+            
             state = states[i]
             next_state = next_states[i]
             done = is_terminal[i]
+            
             reward_list = torch.zeros(H).to(device)
             value_list = torch.zeros(H).to(device)
             reward_list[0] = rewards[i]
@@ -290,25 +293,18 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
+            env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     next_state = env_model.step(action)
                     # hardcode termination rule
-                    cos_theta1 = next_state[0]
-                    sin_theta1 = next_state[1]
-                    cos_theta2 = next_state[2]
-                    sin_theta2 = next_state[3]
+                    _, reward, terminated, truncated, _ = env.step(action.item())
+                    done = terminated or truncated
                     
-                    done = False
-                    if -cos_theta1 - cos_theta1*cos_theta2 + sin_theta1*sin_theta2 > 1.0:
-                        done = True
-                        
-                    if done:
-                        reward = 0
-                    else:
-                        reward = -1
+                    env.set_state_from_observation(next_state)
+                    next_state = torch.Tensor(next_state).to(device)
                     
                     env_model.load_state(next_state)
 
@@ -326,12 +322,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
-            target_single = discounted_rewards.mean()
-            target_single = torch.Tensor([target_single.item()]).detach()
-            
-            target = torch.cat((target, target_single)).detach()
-    
-    target = target.reshape(BATCH_SIZE, 1)
+            avg = discounted_rewards.mean()
+            avg = torch.Tensor([avg.item()]).detach()
+
+            target = torch.cat((target, avg)).detach()
+
+        target.requires_grad = True
+        target = target.reshape(BATCH_SIZE, 1)
     loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
@@ -443,24 +440,17 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        cpu = True
         
-        if type(env.reset()) != numpy.ndarray:
-            cpu = False
-            s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
-        else:
-            s_cont = torch.tensor(env.reset(), dtype=torch.float32).to(device)
-
+        s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+        
         is_terminated = False
         
         while (not is_terminated):
             # Generate data  
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
 
-            if cpu == False:
-                s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
-            else:
-                s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+            s_cont_prime, reward, terminated, truncated, _ = env.step(action.item())
+            is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 
