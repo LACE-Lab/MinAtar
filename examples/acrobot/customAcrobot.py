@@ -16,11 +16,10 @@ class CustomAcrobot(AcrobotEnv):
 
     def step(self, action):
         state, reward, terminated, truncated, _ = super().step(action)
-        self.state = np.array(state)
-        return self.get_obs(), reward, terminated, truncated, {}
+        return state, reward, terminated, truncated, {}
 
     def reset(self):
-        self.state = np.array(super().reset())
+        super().reset()
         return self.get_obs()
         
     def get_obs(self):
