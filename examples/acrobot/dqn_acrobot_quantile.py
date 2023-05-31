@@ -10,16 +10,15 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.optim as optim
 import time
-import gym
+import gymnasium as gym
 
 import random, numpy, argparse, logging, os
 
 import numpy as np
-from tqdm import tqdm
 
 from collections import namedtuple
 from customAcrobot import CustomAcrobot
@@ -32,7 +31,7 @@ REPLAY_BUFFER_SIZE = 10000
 TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 100000
-FIRST_N_FRAMES = 5000
+FIRST_N_FRAMES = 100
 REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.003
@@ -42,7 +41,7 @@ SQUARED_GRAD_MOMENTUM = 0.95
 MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
-H = 3 # rollout constant
+H = 1 # rollout constant
 SEED = 42
 QUANTILES = [0.05, 0.2, 0.5, 0.7, 0.95]  # The target quantiles
 
@@ -106,7 +105,7 @@ class QuantileEnvModel(nn.Module):
 
     def forward(self, state_action_pair):
         x = self.fc1(state_action_pair)
-        x = f.relu(x)
+        x = F.relu(x)
         x = self.dropout(x)
         quantile_outputs = self.fc2(x).view(self.state_size, self.num_quantiles)
         mean_outputs = self.fc3(x).squeeze(0)  # remove batch dimension
@@ -219,15 +218,14 @@ def choose_action(t, replay_start_size, state, policy_net, n_actions):
     x = state.to(device).clone().detach().unsqueeze(0)
     epsilon = END_EPSILON if t - replay_start_size >= FIRST_N_FRAMES \
         else ((END_EPSILON - EPSILON) / FIRST_N_FRAMES) * (t - replay_start_size) + EPSILON
-    if t> FIRST_N_FRAMES:
-        print(epsilon)
+    
     # epsilon-greedy
     if np.random.uniform() < epsilon: # random
         action = torch.tensor([random.randint(0, n_actions-1)]).to(device)
 
     else: # greedy
         actions_value = policy_net(x) # score of actions
-        action = torch.max(actions_value, 1)[1].data.numpy() # pick the highest one
+        action = torch.max(actions_value, 1)[1].cpu().data.numpy() # pick the highest one
         action = torch.tensor(action).to(device)
 
     return action
@@ -243,15 +241,14 @@ def choose_greedy_action(state, policy_net):
     return action
 
 def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+    # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
     
     # Initialize the environment model
     in_channels = env.observation_space.shape[0]
     num_actions = env.action_space.n
-    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES).to(device)
-
-    # unzip the batch samples and turn components into tensors
+    env_model = QuantileEnvModel(in_channels, num_actions).to(device)
 
     batch_samples = transition(*zip(*sample))
 
@@ -266,83 +263,71 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 
     Q_s_a = policy_net(states).gather(1, actions)
 
-    avg_list = torch.empty((0))
-    uncertainty_list = torch.empty((0))
-
-    for i in range(BATCH_SIZE):
-        cpu = False
-        uncertainty = 0
-
-        initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
-        env_model.load_state(initial_state)
-        
-        state = states[i]
-        next_state = next_states[i]
-        done = is_terminal[i]
-
-        reward_list = torch.zeros(H).to(device)
-        value_list = torch.zeros(H).to(device)
-        
-        reward_list[0] = rewards[i]
-        value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-        
-        next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
-        env_model.load_state(next_state)
-
-        for h in range(1, H):
-            if not done:
-                action = choose_greedy_action(state, policy_net)
-                next_state, max_state, min_state = env_model.step(action)
-                # print(next_state, max_state, min_state)
-                uncertainty += abs((max_state - min_state).sum().item())
-                
-                # hardcode termination rule
-                position = next_state[0]
-                angle = next_state[2]
-                
-                done = False
-                if position <= -2.4 or position >= 2.4:
-                    done = True
-                if angle <= -.2095 or angle >= .2095:
-                    done = True
+    if H == 1:
+        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
+        none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+        none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+        Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
+        if len(none_terminal_next_states) != 0:
+            Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+        target = rewards + GAMMA * Q_s_prime_a_prime
+   
+    else:
+        # Now, we are in the H>1 scenario, where we perform rollouts
+        target = torch.empty((0))
+        for i in range(BATCH_SIZE):
+            initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
+            env.set_state_from_observation(initial_state)
+            env_model.load_state(initial_state)
+            
+            state = states[i]
+            next_state = next_states[i]
+            done = is_terminal[i]
+            
+            reward_list = torch.zeros(H).to(device)
+            value_list = torch.zeros(H).to(device)
+            reward_list[0] = rewards[i]
+            value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
+            
+            next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
+            env_model.load_state(next_state)
+            env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            
+            for h in range(1, H):
+                if not done:
+                    action = choose_greedy_action(state, policy_net)
+                    next_state = env_model.step(action)
+                    # hardcode termination rule
+                    _, reward, terminated, truncated, _ = env.step(action.item())
+                    done = terminated or truncated
                     
-                if done:
-                    reward = 0
+                    env.set_state_from_observation(next_state)
+                    next_state = torch.Tensor(next_state).to(device)
+                    
+                    env_model.load_state(next_state)
+
+                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                    reward_list[h] = reward
+                    state = next_state
                 else:
-                    reward = 1
-                
-                env_model.load_state(next_state)
+                    break
+            
+            indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
+            indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+            
+            gamma_powers = GAMMA ** indices
+            gamma_powers_val = GAMMA ** indices_val
+            
+            running_reward = (gamma_powers * reward_list).cumsum(dim=1)
+            discounted_rewards = running_reward + gamma_powers_val * value_list
+            avg = discounted_rewards.mean()
+            avg = torch.Tensor([avg.item()]).detach()
 
-                value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
-                reward_list[h] = reward
+            target = torch.cat((target, avg)).detach()
 
-                state = next_state
-            else:
-                break
-
-        # Create a tensor with indices for the power operation
-        indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
-        indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
-
-        # Compute the gamma powers
-        gamma_powers = GAMMA ** indices
-        gamma_powers_val = GAMMA ** indices_val
-
-        # Calculate the discounted rewards
-        running_reward = (gamma_powers * reward_list).cumsum(dim=1)
-        discounted_rewards = running_reward + gamma_powers_val * value_list
-
-        # Calculate the average
-        avg = discounted_rewards.mean()
-        avg = torch.Tensor([avg.item()]).detach()
-
-        avg_list = torch.cat((avg_list, avg)).detach()
-        uncertainty_list = torch.cat((uncertainty_list, torch.tensor([uncertainty], device=device)))
-
-    avg_list.requires_grad = True
-    avg_list = avg_list.reshape(BATCH_SIZE, 1)
-
-    loss = f.mse_loss(Q_s_a, avg_list)
+        target.requires_grad = True
+        target = target.reshape(BATCH_SIZE, 1)
+    loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
     loss.backward()
@@ -374,7 +359,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Set up the seed
     random.seed(seed)
     np.random.seed(seed)
-    seed_rng = np.random.default_rng(seed=seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -454,25 +438,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         G = 0.0
 
         # Initialize the environment and start state
-        cpu = True
-        new_seed = int(seed_rng.integers(low=0, high=2**32 - 1))
         
-        if type(env.reset(seed=new_seed)) != numpy.ndarray:
-            cpu = False
-            s_cont = torch.tensor(env.reset(seed=new_seed)[0], dtype=torch.float32).to(device)
-        else:
-            s_cont = torch.tensor(env.reset(seed=new_seed), dtype=torch.float32).to(device)
-
+        s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
         
         while (not is_terminated):
             # Generate data  
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
 
-            if cpu == False:
-                s_cont_prime, reward, is_terminated, _, _ = env.step(action.item())
-            else:
-                s_cont_prime, reward, is_terminated, _ = env.step(action.item())
+            s_cont_prime, reward, terminated, truncated, _ = env.step(action.item())
+            is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
 
@@ -591,6 +566,7 @@ def main():
         load_file_path = args.loadfile
 
     env = gym.make("Acrobot-v1")
+    env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
     dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)

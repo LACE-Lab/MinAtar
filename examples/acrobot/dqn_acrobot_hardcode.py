@@ -20,7 +20,6 @@ import random, numpy, argparse, logging, os
 
 import numpy as np
 
-
 from collections import namedtuple
 from customAcrobot import CustomAcrobot
 
@@ -442,7 +441,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         # Initialize the environment and start state
         
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
-        
         is_terminated = False
         
         while (not is_terminated):
