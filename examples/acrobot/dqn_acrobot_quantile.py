@@ -107,8 +107,8 @@ class QuantileEnvModel(nn.Module):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
         x = self.dropout(x)
-        quantile_outputs = self.fc2(x).view(self.state_size, self.num_quantiles)
-        mean_outputs = self.fc3(x).squeeze(0)  # remove batch dimension
+        quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles)
+        mean_outputs = self.fc3(x).squeeze(0)
         
         return quantile_outputs, mean_outputs
 
@@ -116,7 +116,7 @@ class QuantileEnvModel(nn.Module):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1).unsqueeze(0)
 
-        quantile_outputs,  = self.forward(state_action_pair)
+        quantile_outputs, mean_outputs = self.forward(state_action_pair)
 
         predicted_next_state_means = mean_outputs
         predicted_next_state_min = quantile_outputs[:, 0]
@@ -189,14 +189,20 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
 
-    predicted_next_states = env_model(state_action_pairs)
+    predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
 
     # Split the predicted states into the quantiles
-    predicted_next_states = predicted_next_states.view(BATCH_SIZE, env_model.state_size, len(QUANTILES))
+    predicted_next_states_quantiles = predicted_next_states_quantiles.view(BATCH_SIZE, env_model.state_size, len(QUANTILES))
 
     loss = 0.0
+    quantile = 0.0
     for i in range(env_model.state_size):
-        loss += quantile_loss(predicted_next_states[:, i, :], next_states[:, i], QUANTILES)
+        quantile_single = quantile_loss(predicted_next_states_quantiles[:, i, :], next_states[:, i], QUANTILES)
+        quantile += quantile_single
+        loss += quantile_single
+    
+    mean = F.mse_loss(predicted_next_states_means, next_states)
+    loss += mean
 
     l2_reg = torch.tensor(0., device=device)
     for param in env_model.parameters():
@@ -211,7 +217,7 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    return loss
+    return quantile, mean, loss
     
 def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
@@ -248,7 +254,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     # Initialize the environment model
     in_channels = env.observation_space.shape[0]
     num_actions = env.action_space.n
-    env_model = QuantileEnvModel(in_channels, num_actions).to(device)
+    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES).to(device)
 
     batch_samples = transition(*zip(*sample))
 
@@ -262,6 +268,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1)
 
     Q_s_a = policy_net(states).gather(1, actions)
+    
+    uncertainty_list = torch.empty((0))
 
     if H == 1:
         # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
@@ -275,7 +283,10 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     else:
         # Now, we are in the H>1 scenario, where we perform rollouts
         target = torch.empty((0))
+        
         for i in range(BATCH_SIZE):
+            uncertainty = 0
+            
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
@@ -296,19 +307,21 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
-                    next_state = env_model.step(action)
+                    predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
                     # hardcode termination rule
+                    uncertainty += abs((predicted_next_state_max - predicted_next_state_min).sum().item())
+                    
                     _, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
                     
-                    env.set_state_from_observation(next_state)
-                    next_state = torch.Tensor(next_state).to(device)
+                    env.set_state_from_observation(predicted_next_state_means)
+                    predicted_next_state_means = torch.Tensor(predicted_next_state_means).to(device)
                     
-                    env_model.load_state(next_state)
+                    env_model.load_state(predicted_next_state_means)
 
-                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                    value_list[h] = 0 if done else target_net(predicted_next_state_means).max(0)[0].item()
                     reward_list[h] = reward
-                    state = next_state
+                    state = predicted_next_state_means
                 else:
                     break
             
@@ -324,14 +337,18 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
+            uncertainty_list = torch.cat((uncertainty_list, torch.tensor([uncertainty], device=device)))
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
+
     loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+    
+    return uncertainty_list
 
 ################################################################################################################
 # dqn
@@ -468,14 +485,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
+                    uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
+                    uncertainty = uncertainty.mean().item()
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    uncertainty = uncertainty.mean().item()
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
-                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
+                env_model_quantile, env_model_mean, env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
                     
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -499,12 +518,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 1 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item())
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Quantiles: " + str(env_model_quantile.item()) + " | Env Model Means: " + str(env_model_mean.item())
                         )                    
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n"
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Quantiles: " + str(env_model_quantile.item()) + " | Env Model Means: " + str(env_model_mean.item())+ "\n"
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
