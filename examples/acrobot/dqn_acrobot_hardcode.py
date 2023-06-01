@@ -43,6 +43,7 @@ GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
+ENV_HIDDEN_SIZE = 128
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -85,7 +86,7 @@ class QNetwork(pl.LightningModule, nn.Module):
 
 # Define the approximate model of the environment
 class EnvModel(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=4):
+    def __init__(self, state_size, action_size, hidden_size=ENV_HIDDEN_SIZE):
         super(EnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
@@ -241,15 +242,10 @@ def choose_greedy_action(state, policy_net):
 
     return action
     
-def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
-    
-    # Initialize the environment model
-    in_channels = env.observation_space.shape[0]
-    num_actions = env.action_space.n
-    env_model = EnvModel(in_channels, num_actions).to(device)
 
     batch_samples = transition(*zip(*sample))
 
@@ -351,7 +347,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\n")
@@ -374,7 +370,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
-    env_model = EnvModel(in_channels, num_actions).to(device)
+    env_model = EnvModel(in_channels, num_actions, env_hidden_size).to(device)
     
     replay_start_size = 0
     if not target_off:
@@ -469,10 +465,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
+                    trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -547,6 +543,7 @@ def main():
     parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
+    parser.add_argument("--hidden", "-hs", type=int, default=ENV_HIDDEN_SIZE)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -570,7 +567,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden)
 
 
 if __name__ == '__main__':
