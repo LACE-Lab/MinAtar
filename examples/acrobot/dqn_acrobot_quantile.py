@@ -283,7 +283,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     else:
         # Now, we are in the H>1 scenario, where we perform rollouts
         target = torch.empty((0))
-        
+        predicted_uncertainties = []
+        true_errors = []
+
         for i in range(BATCH_SIZE):
             uncertainty = 0
             
@@ -308,9 +310,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
-                    # hardcode termination rule
-                    uncertainty += abs((predicted_next_state_max - predicted_next_state_min).sum().item())
-                    
+                    uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
+
+                    true_error = torch.abs(next_state - predicted_next_state_means).sum().item()
+
+                    predicted_uncertainties.append(uncertainty)
+                    true_errors.append(true_error)
+
                     _, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
                     
@@ -338,6 +344,11 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 
             target = torch.cat((target, avg)).detach()
             uncertainty_list = torch.cat((uncertainty_list, torch.tensor([uncertainty], device=device)))
+            
+        predicted_uncertainties = torch.tensor(predicted_uncertainties, device=device)
+        true_errors = torch.tensor(true_errors, device=device)
+        # Calculate correlation coefficient
+        correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
@@ -348,7 +359,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     loss.backward()
     optimizer.step()
     
-    return uncertainty_list
+    return correlation_coeff, uncertainty_list
 
 ################################################################################################################
 # dqn
@@ -485,12 +496,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
+                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
                     uncertainty = uncertainty.mean().item()
                 else:
                     policy_net_update_counter += 1
-                    uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
                     uncertainty = uncertainty.mean().item()
+                    
+                    f = open(f"coefficient.results", "a")
+                    f.write(str(coefficient) + "\t" + str(t) + "\n")
+                    f.close()
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:

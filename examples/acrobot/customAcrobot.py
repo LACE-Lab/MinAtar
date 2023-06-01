@@ -1,5 +1,5 @@
 import numpy as np
-import gym
+import gymnasium as gym
 from gym.envs.classic_control import AcrobotEnv
 import torch
 
