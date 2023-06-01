@@ -269,26 +269,31 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 
     Q_s_a = policy_net(states).gather(1, actions)
     
-    uncertainty_list = torch.empty((0))
+    predicted_uncertainties = []
+    true_errors = []
 
     if H == 1:
-        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
         none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
         none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
         Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
         if len(none_terminal_next_states) != 0:
             Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
         target = rewards + GAMMA * Q_s_prime_a_prime
-   
+        
+        for i in range(BATCH_SIZE):
+            env_model.load_state(states[i])
+            action = actions[i]
+            predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
+            uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
+            predicted_uncertainties.append(uncertainty)
+
+        true_errors = torch.abs(next_states - predicted_next_state_means).sum(dim=1).cpu().detach().numpy()
+        
     else:
-        # Now, we are in the H>1 scenario, where we perform rollouts
+        # TODO: fix the bug contained in multiple-step rollouts
         target = torch.empty((0))
-        predicted_uncertainties = []
-        true_errors = []
 
         for i in range(BATCH_SIZE):
-            uncertainty = 0
-            
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
@@ -311,8 +316,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
                     uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
-
-                    true_error = torch.abs(next_state - predicted_next_state_means).sum().item()
+                    true_error = torch.abs(next_states - predicted_next_state_means).sum().cpu().numpy()
 
                     predicted_uncertainties.append(uncertainty)
                     true_errors.append(true_error)
@@ -343,15 +347,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
-            uncertainty_list = torch.cat((uncertainty_list, torch.tensor([uncertainty], device=device)))
-            
-        predicted_uncertainties = torch.tensor(predicted_uncertainties, device=device)
-        true_errors = torch.tensor(true_errors, device=device)
-        # Calculate correlation coefficient
-        correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
+    
+    predicted_uncertainties = np.array(predicted_uncertainties)
+    true_errors = np.array(true_errors)
+    
+    # Calculate correlation coefficient
+    correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
     loss = F.mse_loss(Q_s_a, target)
 
@@ -359,7 +363,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
     loss.backward()
     optimizer.step()
     
-    return correlation_coeff, uncertainty_list
+    return correlation_coeff, predicted_uncertainties
 
 ################################################################################################################
 # dqn
