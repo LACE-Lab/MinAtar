@@ -246,15 +246,10 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
-def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
-    
-    # Initialize the environment model
-    in_channels = env.observation_space.shape[0]
-    num_actions = env.action_space.n
-    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES).to(device)
 
     batch_samples = transition(*zip(*sample))
 
@@ -500,11 +495,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant)
+                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model)
                     uncertainty = uncertainty.mean().item()
                 else:
                     policy_net_update_counter += 1
-                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant)
+                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model)
                     uncertainty = uncertainty.mean().item()
                     
                     f = open(f"coefficient.results", "a")
