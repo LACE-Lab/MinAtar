@@ -85,7 +85,7 @@ class QNetwork(pl.LightningModule, nn.Module):
 
 # Define the approximate model of the environment
 class EnvModel(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=128):
+    def __init__(self, state_size, action_size, hidden_size=4):
         super(EnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
