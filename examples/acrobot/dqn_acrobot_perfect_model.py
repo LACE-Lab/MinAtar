@@ -83,24 +83,6 @@ class QNetwork(pl.LightningModule, nn.Module):
         # Returns the output from the fully-connected linear layer
         return self.output(x)
 
-# Define the approximate model of the environment
-class Model(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
-        super(Model, self).__init__()
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.fc1 = nn.Linear(state_dim + action_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 2 * state_dim + 1)
-    
-    def forward(self, state, action):
-        x = torch.cat([state, action], dim=1)
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        next_state, reward, done = x[:, :self.state_dim], x[:, self.state_dim:-1], x[:, -1]
-        return next_state, reward, done
-
 ###########################################################################################################
 # class replay_buffer
 #
