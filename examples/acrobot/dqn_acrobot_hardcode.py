@@ -244,6 +244,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     Q_s_a = policy_net(states).gather(1, actions)
 
     if H == 1:
+        env_loss = 0
         # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
         none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
         none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
