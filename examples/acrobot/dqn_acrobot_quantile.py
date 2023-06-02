@@ -85,7 +85,7 @@ class QNetwork(pl.LightningModule, nn.Module):
         return self.output(x)
 
 class QuantileEnvModel(nn.Module):
-    def __init__(self, state_size, action_size, quantiles, hidden_size=128):
+    def __init__(self, state_size, action_size, quantiles, hidden_size=4):
         super(QuantileEnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
