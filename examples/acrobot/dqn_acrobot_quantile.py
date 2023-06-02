@@ -43,6 +43,7 @@ GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
+ENV_HIDDEN_SIZE = 128
 QUANTILES = [0.05, 0.2, 0.5, 0.7, 0.95]  # The target quantiles
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -85,7 +86,7 @@ class QNetwork(pl.LightningModule, nn.Module):
         return self.output(x)
 
 class QuantileEnvModel(nn.Module):
-    def __init__(self, state_size, action_size, quantiles, hidden_size=4):
+    def __init__(self, state_size, action_size, quantiles, hidden_size=ENV_HIDDEN_SIZE):
         super(QuantileEnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
@@ -373,7 +374,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\tCoefficient\n")
@@ -396,7 +397,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
-    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES).to(device)
+    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES, env_hidden_size).to(device)
     
     replay_start_size = 0
     if not target_off:
@@ -583,6 +584,7 @@ def main():
     parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
     parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
+    parser.add_argument("--hidden", "-hs", type=int, default=ENV_HIDDEN_SIZE)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
@@ -607,7 +609,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden)
 
 
 if __name__ == '__main__':
