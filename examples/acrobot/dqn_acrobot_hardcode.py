@@ -32,7 +32,7 @@ TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 100000
 FIRST_N_FRAMES = 100
-REPLAY_START_SIZE = 64
+REPLAY_START_SIZE = 500
 END_EPSILON = 0.1
 STEP_SIZE = 0.003
 WEIGHT_DECAY = 0.0001
@@ -284,18 +284,21 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
             reward_list = torch.zeros(H).to(device)
             value_list = torch.zeros(H).to(device)
             reward_list[0] = rewards[i]
-            value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
+            # value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
+            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+            
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
+                    
                     next_state = env_model.step(action)
-                    # hardcode termination rule
-                    _, reward, terminated, truncated, _ = env.step(action.item())
+                    # termination rule
+                    real_next_state, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
                     
                     env.set_state_from_observation(next_state)
@@ -314,6 +317,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
             
             gamma_powers = GAMMA ** indices
             gamma_powers_val = GAMMA ** indices_val
+            # print(gamma_powers_val)
             
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
@@ -321,6 +325,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
             avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
+            
+            # print(running_reward, reward_list, value_list, discounted_rewards)
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)

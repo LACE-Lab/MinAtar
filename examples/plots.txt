@@ -5,9 +5,9 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "Cart Pole with MVE - Hardcode Rules"
--n /research/erin/zoshao/results/2023_04_26_cart_pole_hardcode.png
--g "0.001" "0.01" "0.1" 
--a /research/erin/zoshao/results/2023_04_26_cart_pole_a2_0.001.results
--a /research/erin/zoshao/results/2023_04_26_cart_pole_a2_0.01.results
--a /research/erin/zoshao/results/2023_04_26_cart_pole_a2_0.1.results
+-l "Acrobot with MVE - Model Free & Perfect Model"
+-n /research/erin/zoshao/results/2023_06_02_acrobot_MVE.png
+-g "perfect h3" "perfect h1" "model free" 
+-a /research/erin/zoshao/results/2023_06_01_acrobot_perfect_model_h3.*.results
+-a /research/erin/zoshao/results/2023_06_01_acrobot_perfect_model_h1.*.results
+-a /research/erin/zoshao/results/2023_06_01_acrobot_model_free*.results

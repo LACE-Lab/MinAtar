@@ -246,7 +246,7 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, predicted_uncertainties, true_errors):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
@@ -263,9 +263,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1)
 
     Q_s_a = policy_net(states).gather(1, actions)
-    
-    predicted_uncertainties = []
-    true_errors = []
 
     if H == 1:
         none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
@@ -275,14 +272,19 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
             Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
         target = rewards + GAMMA * Q_s_prime_a_prime
         
+        predicted_next_state = []
         for i in range(BATCH_SIZE):
             env_model.load_state(states[i])
             action = actions[i]
             predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
             uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
             predicted_uncertainties.append(uncertainty)
+            predicted_next_state.append(predicted_next_state_means)
 
-        true_errors = torch.abs(next_states - predicted_next_state_means).sum(dim=1).cpu().detach().numpy()
+        predicted_next_state = torch.stack(predicted_next_state)
+
+        new_values = torch.abs(next_states - predicted_next_state).sum(dim=1).cpu().detach().numpy()
+        true_errors = np.append(true_errors, new_values)
         
     else:
         # TODO: fix the bug contained in multiple-step rollouts
@@ -345,12 +347,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
-    
-    predicted_uncertainties = np.array(predicted_uncertainties)
-    true_errors = np.array(true_errors)
-    
-    # Calculate correlation coefficient
-    correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
     loss = F.mse_loss(Q_s_a, target)
 
@@ -358,7 +354,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     loss.backward()
     optimizer.step()
     
-    return correlation_coeff, predicted_uncertainties
+    return predicted_uncertainties, true_errors
 
 ################################################################################################################
 # dqn
@@ -460,9 +456,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     t_start = time.time()
     
     while t <= NUM_FRAMES:
-    # for t in tqdm(range(NUM_FRAMES)):
+    
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
+        predicted_uncertainties = []
+        true_errors = []
 
         # Initialize the environment and start state
         
@@ -495,16 +493,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model)
-                    uncertainty = uncertainty.mean().item()
+                    predicted_uncertainties, true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, predicted_uncertainties, true_errors)
                 else:
                     policy_net_update_counter += 1
-                    coefficient, uncertainty = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model)
-                    uncertainty = uncertainty.mean().item()
-                    
-                    f = open(f"coefficient.results", "a")
-                    f.write(str(coefficient) + "\t" + str(t) + "\n")
-                    f.close()
+                    predicted_uncertainties, true_errors = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, predicted_uncertainties, true_errors)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -523,6 +515,15 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Increment the episodes
         e += 1
+        
+        predicted_uncertainties = np.array(predicted_uncertainties)
+        true_errors = np.array(true_errors)
+        
+        # print(predicted_uncertainties, true_errors)
+        # print(len(predicted_uncertainties), len(true_errors))
+        
+        # Calculate correlation coefficient
+        correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
         # Save the return for each episode
         data_return.append(G)
@@ -542,6 +543,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             f.close()
             f = open(f"{output_file_name}.results", "a")
             f.write(str(G) + "\t" + str(t) + "\n")
+            f.close()
+            
+            f = open(f"{output_file_name}_coefficient.results", "a")
+            f.write(str(correlation_coeff) + "\t" + str(t) + "\n")
             f.close()
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
