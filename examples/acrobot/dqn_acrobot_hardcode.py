@@ -32,7 +32,7 @@ TARGET_NETWORK_UPDATE_FREQ = 500
 TRAINING_FREQ = 1
 NUM_FRAMES = 100000
 FIRST_N_FRAMES = 100
-REPLAY_START_SIZE = 500
+REPLAY_START_SIZE = 64
 END_EPSILON = 0.1
 STEP_SIZE = 0.003
 WEIGHT_DECAY = 0.0001
@@ -105,29 +105,15 @@ class EnvModel(nn.Module):
 
     def forward(self, x):
         x = self.fc1(x)
-        x = self.bn1(x)  # Apply batch normalization
         x = F.relu(x)
-        x = self.dropout(x)  # Apply dropout
         x = self.fc2(x)
         
-        state = x[:, :self.state_size]
-        
-        return state
-    
-    def single_forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout(x)  # Apply dropout
-        x = self.fc2(x)
-        
-        state = x[:self.state_size]
-        
-        return state
+        return x
     
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
-        predicted_next_state = self.single_forward(state_action_pair)
+        predicted_next_state = self.forward(state_action_pair)
         return predicted_next_state.detach().numpy()
 
 ###########################################################################################################
