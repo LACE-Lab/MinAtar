@@ -244,7 +244,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model):
     Q_s_a = policy_net(states).gather(1, actions)
 
     if H == 1:
-        env_loss = 0
+
         # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
         none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
         none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
@@ -423,6 +423,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     env_model_loss = torch.tensor(1)
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
+    t_prev = 0
     
     while t <= NUM_FRAMES:
     # for t in tqdm(range(NUM_FRAMES)):
@@ -501,8 +502,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t) + "\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\n")
             f.close()
+        
+        t_prev = t
+        
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
             torch.save({

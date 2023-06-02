@@ -454,6 +454,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     env_model_loss = torch.tensor(1)
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
+    t_prev = 0
     
     while t <= NUM_FRAMES:
     
@@ -542,8 +543,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t) + "\t" + str(correlation_coeff) + "\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\t" + str(correlation_coeff) + "\n")
             f.close()
+            
+        t_prev = t
 
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:

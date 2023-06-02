@@ -380,6 +380,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     e = e_init
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
+    t_prev = 0
+    
     while t <= NUM_FRAMES:
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
@@ -449,8 +451,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                          str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t) + "\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\n")
             f.close()
+            
+        t_prev = t
+        
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
             torch.save({
