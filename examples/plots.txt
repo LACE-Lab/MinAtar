@@ -5,9 +5,7 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 100
 -e
--l "Acrobot with MVE - Model Free & Perfect Model"
--n /research/erin/zoshao/results/2023_06_02_acrobot_MVE.png
--g "perfect h3" "perfect h1" "model free" 
--a /research/erin/zoshao/results/2023_06_01_acrobot_perfect_model_h3.*.results
--a /research/erin/zoshao/results/2023_06_01_acrobot_perfect_model_h1.*.results
--a /research/erin/zoshao/results/2023_06_01_acrobot_model_free*.results
+-l "Acrobot with QRNN (H=1) - Correlation Coefficient"
+-n /research/erin/zoshao/results/2023_06_02_acrobot_coefficient.png
+-g "H = 1"
+-a /research/erin/zoshao/results/2023_06_02_acrobot_quantile_h1.*.results

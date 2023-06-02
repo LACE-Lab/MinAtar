@@ -376,7 +376,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
-    f.write("Score\t#Frames\n")
+    f.write("Score\t#Frames\tCoefficient\n")
     f.close()
     
     # Set up the seed
@@ -542,12 +542,9 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t) + "\n")
+            f.write(str(G) + "\t" + str(t) + "\t" + str(correlation_coeff) + "\n")
             f.close()
-            
-            f = open(f"{output_file_name}_coefficient.results", "a")
-            f.write(str(correlation_coeff) + "\t" + str(t) + "\n")
-            f.close()
+
         # Save model data and other intermediate data if the corresponding flag is true
         if store_intermediate_result and e % 1 == 0:
             torch.save({
