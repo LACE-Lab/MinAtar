@@ -44,7 +44,7 @@ EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
 ENV_HIDDEN_SIZE = 128
-QUANTILES = [0.05, 0.2, 0.5, 0.7, 0.95]  # The target quantiles
+QUANTILES = [0.01, 0.2, 0.5, 0.7, 0.99]  # The target quantiles
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -107,7 +107,6 @@ class QuantileEnvModel(nn.Module):
     def forward(self, state_action_pair):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
-        x = self.dropout(x)
         quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles)
         mean_outputs = self.fc3(x).squeeze(0)
         
