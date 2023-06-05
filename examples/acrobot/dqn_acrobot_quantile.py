@@ -277,7 +277,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
         target = rewards + GAMMA * Q_s_prime_a_prime
         
     else:
-        # TODO: fix the bug contained in multiple-step rollouts
         target = torch.empty((0))
 
         for i in range(BATCH_SIZE):
@@ -346,8 +345,11 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             #     print(discounted_rewards, value_list, running_reward)
             
             # Calculate the weighted average using weights
-            weighted_avg = (weights * discounted_rewards).sum()
-            avg = torch.Tensor([weighted_avg.item()]).detach()
+            # weighted_avg = (weights * discounted_rewards).sum()
+            # avg = torch.Tensor([weighted_avg.item()]).detach()
+            
+            avg = discounted_rewards.mean()
+            avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
             
