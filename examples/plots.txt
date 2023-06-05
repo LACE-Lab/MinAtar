@@ -1,14 +1,14 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1
+-c 1 3
 -t 2
 -i
--s 100
+-s 5
 -e
--l "Acrobot with MVE Dim=128"
--n /research/erin/zoshao/results/2023_06_02_acrobot_MVE_dim.4.png
--g "Model-free" "H=2" "H=3" "H=4"
--a /research/erin/zoshao/results/2023_06_02_acrobot_model_free_*.retry.results
--a /research/erin/zoshao/results/2023_06_02_acrobot_hardcode_h2.dim.4.*.retry.results
--a /research/erin/zoshao/results/2023_06_02_acrobot_hardcode_h3.dim.4.*.retry.results
--a /research/erin/zoshao/results/2023_06_02_acrobot_hardcode_h4.dim.4.*.retry.results
+-l "Acrobot with QRNN (H=1) Coefficient"
+-n /research/erin/zoshao/results/2023_06_05_acrobot_coefficient.png
+-g "dim=4 5q" "dim=128 5q" "dim=4 2q" "dim=128 2q"
+-a /research/erin/zoshao/results/2023_06_02_acrobot_quantile_h1.dim.4.q5.*.results
+-a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h1.dim.128.q5.*.results
+-a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h1.dim.4.q2.*.results
+-a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h1.dim.128.q2.*.results

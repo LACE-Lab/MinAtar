@@ -15,6 +15,7 @@ import pytorch_lightning as pl
 import torch.optim as optim
 import time
 import gymnasium as gym
+from scipy.special import softmax
 
 import random, numpy, argparse, logging, os
 
@@ -246,6 +247,9 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
+def extend_list(lst, n):
+    return lst + [0]*(n - len(lst))
+
 def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, predicted_uncertainties, true_errors):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
@@ -272,20 +276,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
         target = rewards + GAMMA * Q_s_prime_a_prime
         
-        predicted_next_state = []
-        for i in range(BATCH_SIZE):
-            env_model.load_state(states[i])
-            action = actions[i]
-            predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
-            uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
-            predicted_uncertainties.append(uncertainty)
-            predicted_next_state.append(predicted_next_state_means)
-
-        predicted_next_state = torch.stack(predicted_next_state)
-
-        new_values = torch.abs(next_states - predicted_next_state).sum(dim=1).cpu().detach().numpy()
-        true_errors = np.append(true_errors, new_values)
-        
     else:
         # TODO: fix the bug contained in multiple-step rollouts
         target = torch.empty((0))
@@ -308,18 +298,23 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
+            uncertainty_sample = [0]
+            error_sample = [0]
+
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
                     uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
-                    true_error = torch.abs(next_states - predicted_next_state_means).sum().cpu().numpy()
 
-                    predicted_uncertainties.append(uncertainty)
-                    true_errors.append(true_error)
+                    uncertainty_sample.append(uncertainty)
 
-                    _, reward, terminated, truncated, _ = env.step(action.item())
+                    real_state, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
+                    real_state = torch.tensor(real_state)
+                    
+                    error = abs((real_state - predicted_next_state_means).sum().item())
+                    error_sample.append(error)
                     
                     env.set_state_from_observation(predicted_next_state_means)
                     predicted_next_state_means = torch.Tensor(predicted_next_state_means).to(device)
@@ -332,6 +327,12 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                 else:
                     break
             
+            uncertainty_sample = list(np.cumsum(uncertainty_sample))
+            uncertainty_sample = extend_list(uncertainty_sample, H)
+            error_sample = list(np.cumsum(error_sample))
+            weights = softmax(uncertainty_sample)
+            weights = torch.Tensor(weights).to(device).unsqueeze(0)
+            
             indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
             indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
             
@@ -340,10 +341,22 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
-            avg = discounted_rewards.mean()
-            avg = torch.Tensor([avg.item()]).detach()
+            
+            # if uncertainty_sample[-1] == 0:
+            #     print(discounted_rewards, value_list, running_reward)
+            
+            # Calculate the weighted average using weights
+            weighted_avg = (weights * discounted_rewards).sum()
+            avg = torch.Tensor([weighted_avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
+            
+            # print(uncertainty_sample,error_sample)
+            predicted_uncertainties.append(uncertainty_sample[-1])
+            true_errors.append(error_sample[-1])
+            
+        # print(predicted_uncertainties, true_errors)
+        # print(len(predicted_uncertainties), len(true_errors))
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
