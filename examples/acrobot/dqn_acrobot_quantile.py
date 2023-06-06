@@ -344,14 +344,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             discounted_rewards = running_reward + gamma_powers_val * value_list
             
             # if uncertainty_sample[-1] == 0:
-            #     print(discounted_rewards, value_list, running_reward)
+            #     print(weights)
             
             # Calculate the weighted average using weights
-            # weighted_avg = (weights * discounted_rewards).sum()
-            # avg = torch.Tensor([weighted_avg.item()]).detach()
+            weighted_avg = (weights * discounted_rewards).sum()
+            avg = torch.Tensor([weighted_avg.item()]).detach()
             
-            avg = discounted_rewards.mean()
-            avg = torch.Tensor([avg.item()]).detach()
+            # Means
+            # avg = discounted_rewards.mean()
+            # avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
             
