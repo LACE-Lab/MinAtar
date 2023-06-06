@@ -1,14 +1,15 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1
+-c 1 3
 -t 2
 -i
--s 5
+-s 10
 -e
 -l "Acrobot with Different Models (H=3)"
--n /research/erin/zoshao/results/2023_06_05_acrobot_comparison_select_w/o_select.png
+-n /research/erin/zoshao/results/2023_06_05_acrobot_comparison_select_no_select_coefficient.png
 -g "Model free" "No select 128" "No select 4" "Select 128" "Select 4"
 -a /research/erin/zoshao/results/2023_06_02_acrobot_model_free_*.retry.results
--a /research/erin/zoshao/results/2023_06_02_acrobot_perfect_model_h3.*.retry.results
+-a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h3.dim.128.no_selection.*.results
+-a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h3.dim.4.no_selection.*.results
 -a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h1.dim.128.h3.*.results
 -a /research/erin/zoshao/results/2023_06_05_acrobot_quantile_h1.dim.4.h3.*.results
