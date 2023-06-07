@@ -96,33 +96,39 @@ class QuantileEnvModel(nn.Module):
         self.quantiles = quantiles
         self.num_quantiles = len(quantiles)
 
-        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
+        self.fc1 = nn.Linear((state_size * 2) + action_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, len(quantiles) * state_size)
         self.fc3 = nn.Linear(hidden_size, state_size)
 
-    def load_state(self, state):
-        self.state = state.clone().detach()
+    def load_state(self, max_state, min_state):
+        self.max_state = max_state.clone().detach()
+        self.min_state = min_state.clone().detach()
 
     def save_state(self):
-        return self.state.clone().detach()
+        return self.max_state.clone().detach(), self.min_state.clone().detach()
 
     def forward(self, state_action_pair):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
-        quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles)
+        quantile_outputs = self.fc2(x).view(x.shape[0], self.state_size, self.num_quantiles).squeeze()
         mean_outputs = self.fc3(x).squeeze(0)
-        
         return quantile_outputs, mean_outputs
 
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
-        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1).unsqueeze(0)
+        range_state = torch.cat((self.max_state, self.min_state), dim=-1).squeeze()
+        state_action_pair = torch.cat((range_state, one_hot_action), dim=-1).unsqueeze(0)
+        # print(self.max_state, self.min_state)
+        # print(state_action_pair)
 
         quantile_outputs, mean_outputs = self.forward(state_action_pair)
 
         predicted_next_state_means = mean_outputs
+        print(quantile_outputs)
         predicted_next_state_min = quantile_outputs[:, 0]
         predicted_next_state_max = quantile_outputs[:, -1]
+        
+        print("here: ", predicted_next_state_min, predicted_next_state_max)
         
         return predicted_next_state_means, predicted_next_state_min, predicted_next_state_max
 
@@ -182,6 +188,23 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     batch_samples = transition(*zip(*sample))
 
     states = torch.vstack((batch_samples.state)).to(device)
+    # randomly generate a state range that contains states
+    
+    # Get the max and min values
+    max_states = states.max(dim=0)[0]
+    min_states = states.min(dim=0)[0]
+
+    # Define a random range for the expansion
+    random_range = torch.rand(size=max_states.shape, device=device)
+
+    # Expand the max and min values
+    expanded_max_states = max_states + random_range
+    expanded_min_states = min_states - random_range
+    range_states = torch.cat((expanded_max_states, expanded_min_states), dim=-1)
+    
+    print(expanded_max_states, expanded_min_states)
+    print(range_states)
+    
     next_states = torch.vstack((batch_samples.next_state)).to(device)
 
     actions = torch.cat(batch_samples.action, 0)
@@ -189,7 +212,7 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
 
-    state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
+    state_action_pairs = torch.cat((range_states, one_hot_actions), dim=-1)
 
     predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
 
@@ -287,7 +310,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
-            env_model.load_state(initial_state)
+            env_model.load_state(initial_state, initial_state)
             
             state = states[i]
             next_state = next_states[i]
@@ -299,7 +322,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
-            env_model.load_state(next_state)
+            env_model.load_state(next_state, next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
             uncertainty_sample = [0]
@@ -322,8 +345,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     
                     env.set_state_from_observation(predicted_next_state_means)
                     predicted_next_state_means = torch.Tensor(predicted_next_state_means).to(device)
-                    
-                    env_model.load_state(predicted_next_state_means)
+                    env_model.load_state(predicted_next_state_max, predicted_next_state_min)
 
                     value_list[h] = 0 if done else target_net(predicted_next_state_means).max(0)[0].item()
                     reward_list[h] = reward

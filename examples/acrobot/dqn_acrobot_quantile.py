@@ -109,7 +109,7 @@ class QuantileEnvModel(nn.Module):
     def forward(self, state_action_pair):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
-        quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles)
+        quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles).squeeze()
         mean_outputs = self.fc3(x).squeeze(0)
         
         return quantile_outputs, mean_outputs
