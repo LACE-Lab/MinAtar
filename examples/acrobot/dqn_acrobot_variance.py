@@ -94,7 +94,8 @@ class VarEnvModel(nn.Module):
         self.action_size = action_size
 
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, 2 * state_size)
+        self.fc_states = nn.Linear(hidden_size, state_size)
+        self.fc_variances = nn.Linear(hidden_size, state_size)
 
     def load_state(self, state):
         self.state = state.clone().detach()
@@ -105,20 +106,18 @@ class VarEnvModel(nn.Module):
     def forward(self, state_action_pair):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
-        outputs = self.fc2(x)
-
-        mean_outputs = outputs[:, :self.state_size].squeeze()
-        var_outputs = torch.exp(outputs[:, self.state_size:]).squeeze()
-
-        return mean_outputs, var_outputs
+        state_outputs = self.fc_states(x).squeeze(0)
+        variance_outputs = F.relu(self.fc_variances(x)).squeeze(0)  # ReLU ensures non-negativity
+        
+        return state_outputs, variance_outputs
 
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         state_action_pair = torch.cat((self.state, one_hot_action), dim=-1).unsqueeze(0)
 
-        mean_outputs, var_outputs = self.forward(state_action_pair)
-
-        return mean_outputs, var_outputs
+        state_outputs, variance_outputs = self.forward(state_action_pair)
+        
+        return state_outputs, variance_outputs
 
 ###########################################################################################################
 # class replay_buffer
@@ -161,15 +160,6 @@ class replay_buffer:
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-def quantile_loss(preds, targets, quantiles):
-    assert not targets.requires_grad
-    assert preds.size(0) == targets.size(0)
-    losses = []
-    for i, q in enumerate(quantiles):
-        errors = targets - preds[:, i]
-        losses.append(torch.max((q-1)*errors, q*errors).unsqueeze(1))
-    loss = torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1))
-    return loss
 
 def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
     batch_samples = transition(*zip(*sample))
@@ -194,7 +184,6 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
         var_inv = 1 / (predicted_next_states_vars[:, i] + 1e-6)
         diff = next_states[:, i] - predicted_next_states_means[:, i]
         loss_i = torch.mean(0.5 * var_inv * diff**2 + 0.5 * torch.log(predicted_next_states_vars[:, i] + 1e-6))
-        print(loss_i)
         loss += loss_i
 
     l2_reg = torch.tensor(0., device=device)

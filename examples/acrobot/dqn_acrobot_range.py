@@ -211,7 +211,7 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
     one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
-
+    print(range_states, one_hot_actions)
     state_action_pairs = torch.cat((range_states, one_hot_actions), dim=-1)
 
     predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
