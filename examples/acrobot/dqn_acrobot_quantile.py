@@ -6,6 +6,7 @@
 # Incorpeted MVE, NN for Env model
 # The Env model predicts only the state
 # The reward and termination rule are hardcoded
+# Env Model is with range output
 ################################################################################################################
 
 import torch
