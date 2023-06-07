@@ -116,7 +116,7 @@ class QuantileEnvModel(nn.Module):
 
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
-        range_state = torch.cat((self.max_state, self.min_state), dim=-1).squeeze()
+        range_state = torch.cat((self.min_state, self.max_state), dim=-1).squeeze()
         state_action_pair = torch.cat((range_state, one_hot_action), dim=-1).unsqueeze(0)
         # print(self.max_state, self.min_state)
         # print(state_action_pair)
@@ -124,11 +124,8 @@ class QuantileEnvModel(nn.Module):
         quantile_outputs, mean_outputs = self.forward(state_action_pair)
 
         predicted_next_state_means = mean_outputs
-        print(quantile_outputs)
         predicted_next_state_min = quantile_outputs[:, 0]
         predicted_next_state_max = quantile_outputs[:, -1]
-        
-        print("here: ", predicted_next_state_min, predicted_next_state_max)
         
         return predicted_next_state_means, predicted_next_state_min, predicted_next_state_max
 
@@ -188,22 +185,22 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     batch_samples = transition(*zip(*sample))
 
     states = torch.vstack((batch_samples.state)).to(device)
-    # randomly generate a state range that contains states
     
-    # Get the max and min values
-    max_states = states.max(dim=0)[0]
-    min_states = states.min(dim=0)[0]
-
-    # Define a random range for the expansion
-    random_range = torch.rand(size=max_states.shape, device=device)
-
-    # Expand the max and min values
-    expanded_max_states = max_states + random_range
-    expanded_min_states = min_states - random_range
-    range_states = torch.cat((expanded_max_states, expanded_min_states), dim=-1)
+    # Generate a random range for each state, ensuring the min is smaller and max is greater
+    random_range_min = torch.rand_like(states, device=device)
+    random_range_max = torch.rand_like(states, device=device)
     
-    print(expanded_max_states, expanded_min_states)
-    print(range_states)
+    f = open(f"test2.results", "a")
+    f.write(str(random_range_min) + str(random_range_max))
+    f.close()
+
+    # Subtract from the state to create min range, ensuring non-negativity
+    expanded_min_states = torch.abs(states - random_range_min)
+
+    # Add to the state to create max range, ensuring non-negativity
+    expanded_max_states = torch.abs(states + random_range_max)
+
+    range_states = torch.cat((expanded_min_states, expanded_max_states), dim=-1)
     
     next_states = torch.vstack((batch_samples.next_state)).to(device)
 
@@ -211,7 +208,6 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
     one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
-    print(range_states, one_hot_actions)
     state_action_pairs = torch.cat((range_states, one_hot_actions), dim=-1)
 
     predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
@@ -369,26 +365,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
-            
-            # if uncertainty_sample[-1] == 0:
-            #     print(weights)
-            
+
             # Calculate the weighted average using weights
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
-            
-            # Means
-            # avg = discounted_rewards.mean()
-            # avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
-            
-            # print(uncertainty_sample,error_sample)
+
             predicted_uncertainties.append(uncertainty_sample[-1])
             true_errors.append(error_sample[-1])
-            
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
@@ -564,9 +549,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         predicted_uncertainties = np.array(predicted_uncertainties)
         true_errors = np.array(true_errors)
-        
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
         
         # Calculate correlation coefficient
         correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
