@@ -309,7 +309,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
-                    uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
+                    uncertainty = torch.abs(predicted_next_state_max - predicted_next_state_min).sum().item()
+                    # print(predicted_next_state_max, predicted_next_state_min)
+                    # print(uncertainty)
 
                     uncertainty_sample.append(uncertainty)
 
