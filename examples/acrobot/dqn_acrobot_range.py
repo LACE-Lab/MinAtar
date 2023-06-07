@@ -189,10 +189,6 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
     # Generate a random range for each state, ensuring the min is smaller and max is greater
     random_range_min = torch.rand_like(states, device=device)
     random_range_max = torch.rand_like(states, device=device)
-    
-    f = open(f"test2.results", "a")
-    f.write(str(random_range_min) + str(random_range_max))
-    f.close()
 
     # Subtract from the state to create min range, ensuring non-negativity
     expanded_min_states = torch.abs(states - random_range_min)
@@ -328,7 +324,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
-                    uncertainty = abs((predicted_next_state_max - predicted_next_state_min).sum().item())
+                    uncertainty = torch.abs(predicted_next_state_max - predicted_next_state_min).sum().item()
 
                     uncertainty_sample.append(uncertainty)
 
