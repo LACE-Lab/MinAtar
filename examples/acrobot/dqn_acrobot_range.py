@@ -344,8 +344,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     state = predicted_next_state_means
                 else:
                     break
-            
-            uncertainty_sample = list(np.cumsum(uncertainty_sample))
+
             uncertainty_sample = extend_list(uncertainty_sample, H)
             error_sample = list(np.cumsum(error_sample))
             

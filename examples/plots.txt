@@ -5,9 +5,10 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 30
 -e
--l "Acrobot Variance & Range Selective MVE (dim=128, t=1)  "
--n /research/erin/zoshao/results/2023_06_06_acrobot_comparison_MVE_dim.128.t.1.png
--g "Model-free" "Variance" "Range"
+-l "Acrobot Selective MVE (dim=4, t=0.5)  "
+-n /research/erin/zoshao/results/2023_06_07_acrobot_comparison_dim.4.t.0.5.png
+-g "Model-free" "Variance" "Range" "Range-to-Range"
 -a /research/erin/zoshao/results/2023_06_02_acrobot_model_free_*.retry.results
--a /research/erin/zoshao/results/2023_06_06_acrobot_variance_h3.dim.128.t.1.*.results
--a /research/erin/zoshao/results/2023_06_06_acrobot_quantile_h3.dim.128.t.1.*.results
+-a /research/erin/zoshao/results/2023_06_07_acrobot_variance_h3.dim.4.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_07_acrobot_quantile_h3.dim.4.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_07_acrobot_range_h3.dim.4.t.0.5.*.results
