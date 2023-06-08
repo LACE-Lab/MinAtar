@@ -96,6 +96,7 @@ class VarEnvModel(nn.Module):
         self.fc1 = nn.Linear(state_size + action_size, hidden_size)
         self.fc_states = nn.Linear(hidden_size, state_size)
         self.fc_variances = nn.Linear(hidden_size, state_size)
+        self.softplus = torch.nn.Softplus()
 
     def load_state(self, state):
         self.state = state.clone().detach()
@@ -107,7 +108,9 @@ class VarEnvModel(nn.Module):
         x = self.fc1(state_action_pair)
         x = F.relu(x)
         state_outputs = self.fc_states(x).squeeze(0)
-        variance_outputs = F.relu(self.fc_variances(x)).squeeze(0)  # ReLU ensures non-negativity
+        variance_outputs = self.fc_variances(x).squeeze(0)
+        
+        variance_outputs = self.softplus(variance_outputs) + 0.000001
         
         return state_outputs, variance_outputs
 
@@ -290,6 +293,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_vars = env_model.step(action)
                     uncertainty = predicted_next_state_vars.sum().item()
+                    print(predicted_next_state_vars, uncertainty)
 
                     uncertainty_sample.append(uncertainty)
 
