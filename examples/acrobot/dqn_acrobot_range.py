@@ -46,7 +46,7 @@ EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
 ENV_HIDDEN_SIZE = 128
-QUANTILES = [0.01, 0.99]  # The target quantiles
+QUANTILES = [0.05, 0.95]  # The target quantiles
 TEMPERATURE = 1
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
