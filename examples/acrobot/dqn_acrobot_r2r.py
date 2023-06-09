@@ -120,8 +120,6 @@ class QuantileEnvModel(nn.Module):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
         range_state = torch.cat((self.min_state, self.max_state), dim=-1).squeeze()
         state_action_pair = torch.cat((range_state, one_hot_action), dim=-1).unsqueeze(0)
-        # print(self.max_state, self.min_state)
-        # print(state_action_pair)
 
         quantile_outputs, mean_outputs = self.forward(state_action_pair)
 
@@ -200,44 +198,63 @@ def quantile_loss(preds, targets, quantiles):
     loss = torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1))
     return loss
 
+rangeTransition = namedtuple('rangeTransition', 'true_state, state_max, state_min, true_next_state, next_state_max, next_state_min, next_state_mean, action, reward, is_terminal')
+
+def process_batch(batch, env_model):
+    new_batch = []
+    for rollout in batch:
+        state_max = rollout[0].state
+        state_min = rollout[0].state
+        
+        rollout_transitions = []
+
+        for transition in rollout:
+            env_model.load_state(state_max, state_min)
+            predicted_next_state_mean, predicted_next_state_min, predicted_next_state_max = env_model.step(transition.action)
+
+            new_transition = rangeTransition(transition.state, state_max, state_min, 
+                                             transition.next_state, predicted_next_state_max, predicted_next_state_min, predicted_next_state_mean, 
+                                             transition.action, transition.reward, transition.is_terminal)
+
+            rollout_transitions.append(new_transition)
+            state_max, state_min = predicted_next_state_max, predicted_next_state_min
+            
+        random_transition = random.choice(rollout_transitions)
+        new_batch.append(random_transition)
+
+    return new_batch
+
 def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
-    batch_samples = transition(*zip(*sample))
-
-    states = torch.vstack((batch_samples.state)).to(device)
+    # Process the batch
+    processed_sample = process_batch(sample, env_model)
     
-    # Generate a random range for each state, ensuring the min is smaller and max is greater
-    random_range_min = torch.rand_like(states, device=device)
-    random_range_max = torch.rand_like(states, device=device)
+    # Unpack the processed batch
+    batch_samples = rangeTransition(*zip(*processed_sample))
 
-    # Subtract from the state to create min range, ensuring non-negativity
-    expanded_min_states = torch.abs(states - random_range_min)
-
-    # Add to the state to create max range, ensuring non-negativity
-    expanded_max_states = torch.abs(states + random_range_max)
-
-    range_states = torch.cat((expanded_min_states, expanded_max_states), dim=-1)
+    states_max = torch.vstack((batch_samples.state_max)).to(device)
+    states_min = torch.vstack((batch_samples.state_min)).to(device)
     
-    next_states = torch.vstack((batch_samples.next_state)).to(device)
-
     actions = torch.cat(batch_samples.action, 0)
     actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
-    one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
-    state_action_pairs = torch.cat((range_states, one_hot_actions), dim=-1)
-
-    predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
-
-    # Split the predicted states into the quantiles
-    predicted_next_states_quantiles = predicted_next_states_quantiles.view(BATCH_SIZE, env_model.state_size, len(QUANTILES))
+    next_states_max = torch.vstack((batch_samples.next_state_max)).to(device)
+    next_states_min = torch.vstack((batch_samples.next_state_min)).to(device)
+    predicted_next_states_means = torch.vstack((batch_samples.next_state_mean)).to(device)
+    true_next_states = torch.vstack((batch_samples.true_next_state)).to(device)
+    
+    predicted_next_states_quantiles = torch.zeros((BATCH_SIZE, env_model.state_size, len(QUANTILES)))
+    for i in range(env_model.state_size):
+        predicted_next_states_quantiles[:, i, 0] = next_states_min[:, i]
+        predicted_next_states_quantiles[:, i, 1] = next_states_max[:, i]
 
     loss = 0.0
     quantile = 0.0
     for i in range(env_model.state_size):
-        quantile_single = quantile_loss(predicted_next_states_quantiles[:, i, :], next_states[:, i], QUANTILES)
+        quantile_single = quantile_loss(predicted_next_states_quantiles[:, i, :], true_next_states[:, i].detach(), QUANTILES)
         quantile += quantile_single
         loss += quantile_single
     
-    mean = F.mse_loss(predicted_next_states_means, next_states)
+    mean = F.mse_loss(predicted_next_states_means, true_next_states)
     loss += mean
 
     l2_reg = torch.tensor(0., device=device)
@@ -367,9 +384,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             uncertainty_sample = extend_list(uncertainty_sample, H)
             error_sample = list(np.cumsum(error_sample))
             
-            f = open(f"test1.results", "a")
-            f.write(str(uncertainty_sample))
-            f.close()
+            # f = open(f"test1.results", "a")
+            # f.write(str(uncertainty_sample))
+            # f.close()
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty_sample]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
@@ -519,6 +536,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
+        rollout = []
         
         while (not is_terminated):
             # Generate data  
@@ -528,7 +546,15 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-
+            
+            # Add current transition to rollout buffer
+            rollout.append(transition(s_cont, s_cont_prime, action, reward, is_terminated))
+            
+            # If we've collected enough transitions for a rollout, add it to the buffer and remove the oldest transition
+            if len(rollout) == ENV_H:
+                env_buffer.add(list(rollout))  # Make a copy of current rollout
+                rollout.pop(0)  # Remove the first transition
+        
             sample_policy = None
             sample_env = None
             if replay_off:
@@ -542,7 +568,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
                     sample_policy = r_buffer.sample(BATCH_SIZE)
-                    sample_env = r_buffer.sample(BATCH_SIZE)
+                    
+                    # Sample a rollout
+                    if len(env_buffer.buffer) >= BATCH_SIZE:  # Make sure we have enough rollouts to sample
+                        sample_env = env_buffer.sample(BATCH_SIZE)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
