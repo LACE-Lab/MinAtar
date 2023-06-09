@@ -7,6 +7,7 @@
 # The Env model predicts only the state
 # The reward and termination rule are hardcoded
 # Env Model is with range input, range output
+# This one is using model rollout to train env model
 ################################################################################################################
 
 import torch
@@ -44,6 +45,7 @@ MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
+ENV_H = 5  # rollout constant for env training
 SEED = 42
 ENV_HIDDEN_SIZE = 128
 QUANTILES = [0.05, 0.95]  # The target quantiles
@@ -153,6 +155,23 @@ class replay_buffer:
             self.buffer[self.location] = transition(*args)
 
         # Increment the buffer location
+        self.location = (self.location + 1) % self.buffer_size
+
+    def sample(self, batch_size):
+        return random.sample(self.buffer, batch_size)
+    
+class rollout_replay_buffer:
+    def __init__(self, buffer_size):
+        self.buffer_size = buffer_size
+        self.location = 0
+        self.buffer = []
+
+    def add(self, sequence):
+        # sequence is a list of transitions
+        if len(self.buffer) < self.buffer_size:
+            self.buffer.append(sequence)
+        else:
+            self.buffer[self.location] = sequence
         self.location = (self.location + 1) % self.buffer_size
 
     def sample(self, batch_size):
@@ -437,6 +456,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     if not replay_off:
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
+        env_buffer = rollout_replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size_policy, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
@@ -489,7 +509,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     t_prev = 0
     
     while t <= NUM_FRAMES:
-    
+        
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
         predicted_uncertainties = []
