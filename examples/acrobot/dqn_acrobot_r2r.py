@@ -209,7 +209,7 @@ def process_batch(batch, env_model):
         rollout_transitions = []
 
         for transition in rollout:
-            env_model.load_state(state_max, state_min)
+            env_model.load_state(max_state=state_max, min_state=state_min)
             predicted_next_state_mean, predicted_next_state_min, predicted_next_state_max = env_model.step(transition.action)
 
             new_transition = rangeTransition(transition.state, state_max, state_min, 
@@ -368,7 +368,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     done = terminated or truncated
                     real_state = torch.tensor(real_state)
                     
-                    error = abs((real_state - predicted_next_state_means).sum().item())
+                    error = torch.abs(real_state - predicted_next_state_means).sum().item()
                     error_sample.append(error)
                     
                     env.set_state_from_observation(predicted_next_state_means)
@@ -382,7 +382,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     break
 
             uncertainty_sample = extend_list(uncertainty_sample, H)
-            error_sample = list(np.cumsum(error_sample))
+            # error_sample = list(np.cumsum(error_sample))
             
             # f = open(f"test1.results", "a")
             # f.write(str(uncertainty_sample))

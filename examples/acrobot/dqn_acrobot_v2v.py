@@ -6,9 +6,11 @@
 # Incorpeted MVE, NN for Env model
 # The Env model predicts only the state
 # The reward and termination rule are hardcoded
-# Env Model is with range output
+# Env Model is with variance input, variance output
+# This one is using model rollout to train env model
 ################################################################################################################
 
+from statistics import variance
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -44,6 +46,7 @@ MIN_SQUARED_GRAD = 0.01
 GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
+ENV_H = 5  # rollout constant for env training
 SEED = 42
 ENV_HIDDEN_SIZE = 128
 QUANTILES = [0.05, 0.95]  # The target quantiles
@@ -88,44 +91,41 @@ class QNetwork(pl.LightningModule, nn.Module):
         # Returns the output from the fully-connected linear layer
         return self.output(x)
 
-class QuantileEnvModel(nn.Module):
-    def __init__(self, state_size, action_size, quantiles, hidden_size=ENV_HIDDEN_SIZE):
-        super(QuantileEnvModel, self).__init__()
+class VarEnvModel(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=ENV_HIDDEN_SIZE):
+        super(VarEnvModel, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
-        self.quantiles = quantiles
-        self.num_quantiles = len(quantiles)
 
-        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, len(quantiles) * state_size)
-        self.fc3 = nn.Linear(hidden_size, state_size)
-
-    def load_state(self, state):
+        self.fc1 = nn.Linear(2*state_size + action_size, hidden_size)
+        self.fc_states = nn.Linear(hidden_size, state_size)
+        self.fc_variances = nn.Linear(hidden_size, state_size)
+        self.softplus = torch.nn.Softplus()
+        
+    def load_state(self, state, variance):
         self.state = state.clone().detach()
+        self.variance = variance.clone().detach()
 
     def save_state(self):
-        return self.state.clone().detach()
+        return self.state.clone().detach(), self.variance.clone().detach()
 
-    def forward(self, state_action_pair):
-        x = self.fc1(state_action_pair)
+    def forward(self, state_var_action):
+        x = self.fc1(state_var_action)
         x = F.relu(x)
-        quantile_outputs = self.fc2(x).view(x.shape[0],self.state_size, self.num_quantiles).squeeze()
-        mean_outputs = self.fc3(x).squeeze(0)
+        state_outputs = self.fc_states(x).squeeze(0)
+        variance_outputs = self.fc_variances(x).squeeze(0)
         
-        return quantile_outputs, mean_outputs
+        variance_outputs = self.softplus(variance_outputs) + 0.000001
+        
+        return state_outputs, variance_outputs
 
     def step(self, action):
         one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
-        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1).unsqueeze(0)
+        state_var_action = torch.cat((self.state, self.variance, one_hot_action), dim=-1).unsqueeze(0)
 
-        quantile_outputs, mean_outputs = self.forward(state_action_pair)
-
-        predicted_next_state_means = mean_outputs
-        predicted_next_state_min = quantile_outputs[:, 0]
-        predicted_next_state_max = quantile_outputs[:, -1]
+        state_outputs, variance_outputs = self.forward(state_var_action)
         
-        return predicted_next_state_means, predicted_next_state_min, predicted_next_state_max
-
+        return state_outputs, variance_outputs
 
 ###########################################################################################################
 # class replay_buffer
@@ -154,6 +154,23 @@ class replay_buffer:
 
     def sample(self, batch_size):
         return random.sample(self.buffer, batch_size)
+    
+class rollout_replay_buffer:
+    def __init__(self, buffer_size):
+        self.buffer_size = buffer_size
+        self.location = 0
+        self.buffer = []
+
+    def add(self, sequence):
+        # sequence is a list of transitions
+        if len(self.buffer) < self.buffer_size:
+            self.buffer.append(sequence)
+        else:
+            self.buffer[self.location] = sequence
+        self.location = (self.location + 1) % self.buffer_size
+
+    def sample(self, batch_size):
+        return random.sample(self.buffer, batch_size)
 
 ################################################################################################################
 # train
@@ -168,43 +185,56 @@ class replay_buffer:
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-def quantile_loss(preds, targets, quantiles):
-    assert not targets.requires_grad
-    assert preds.size(0) == targets.size(0)
-    losses = []
-    for i, q in enumerate(quantiles):
-        errors = targets - preds[:, i]
-        losses.append(torch.max((q-1)*errors, q*errors).unsqueeze(1))
-    loss = torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1))
-    return loss
+
+rangeTransition = namedtuple('rangeTransition', 'true_state, state_variance, true_next_state, next_state, next_state_variance, action, reward, is_terminal')
+
+def process_batch(batch, env_model):
+    new_batch = []
+    for rollout in batch:
+        state = rollout[0].state
+        variance = torch.zeros(len(state))
+        
+        rollout_transitions = []
+
+        for transition in rollout:
+            env_model.load_state(state, variance)
+            predicted_next_state, predicted_variance = env_model.step(transition.action)
+
+            new_transition = rangeTransition(transition.state, variance, 
+                                             transition.next_state, predicted_next_state, predicted_variance, 
+                                             transition.action, transition.reward, transition.is_terminal)
+
+            rollout_transitions.append(new_transition)
+            state, variance = predicted_next_state, predicted_variance
+            
+        random_transition = random.choice(rollout_transitions)
+        new_batch.append(random_transition)
+
+    return new_batch
 
 def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
-    batch_samples = transition(*zip(*sample))
-
-    states = torch.vstack((batch_samples.state)).to(device)
-    next_states = torch.vstack((batch_samples.next_state)).to(device)
-
+    # Process the batch
+    processed_sample = process_batch(sample, env_model)
+    
+    # Unpack the processed batch
+    batch_samples = rangeTransition(*zip(*processed_sample))
+    
     actions = torch.cat(batch_samples.action, 0)
     actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
 
-    one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
-
-    state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
-
-    predicted_next_states_quantiles, predicted_next_states_means = env_model(state_action_pairs)
-
-    # Split the predicted states into the quantiles
-    predicted_next_states_quantiles = predicted_next_states_quantiles.view(BATCH_SIZE, env_model.state_size, len(QUANTILES))
-
-    loss = 0.0
-    quantile = 0.0
-    for i in range(env_model.state_size):
-        quantile_single = quantile_loss(predicted_next_states_quantiles[:, i, :], next_states[:, i], QUANTILES)
-        quantile += quantile_single
-        loss += quantile_single
+    predicted_next_states = torch.vstack((batch_samples.next_state)).to(device)
+    predicted_next_variance = torch.vstack((batch_samples.next_state_variance)).to(device)
+    true_next_states = torch.vstack((batch_samples.true_next_state)).to(device)
     
-    mean = F.mse_loss(predicted_next_states_means, next_states)
-    loss += mean
+    # Heteroscedastic loss for each state
+    loss = 0.0
+    for i in range(env_model.state_size):
+        # Loss = 0.5 * var_inv * (next_states - means)^2 + 0.5 * log(var)
+        # The constant 1e-6 is added to avoid division by zero
+        var_inv = 1 / (predicted_next_variance[:, i] + 1e-6)
+        diff = true_next_states[:, i] - predicted_next_states[:, i]
+        loss_i = torch.mean(0.5 * var_inv * diff**2 + 0.5 * torch.log(predicted_next_variance[:, i] + 1e-6))
+        loss += loss_i
 
     l2_reg = torch.tensor(0., device=device)
     for param in env_model.parameters():
@@ -219,7 +249,7 @@ def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_g
 
     optimizer.step()
 
-    return quantile, mean, loss
+    return loss
     
 def choose_action(t, replay_start_size, state, policy_net, n_actions):
     # print(state)
@@ -287,7 +317,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
-            env_model.load_state(initial_state)
+            env_model.load_state(initial_state, torch.zeros(len(initial_state)))
             
             state = states[i]
             next_state = next_states[i]
@@ -299,7 +329,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
-            env_model.load_state(next_state)
+            env_model.load_state(next_state, torch.zeros(len(next_state)))
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
             uncertainty_sample = [0]
@@ -308,10 +338,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
-                    predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
-                    uncertainty = torch.abs(predicted_next_state_max - predicted_next_state_min).sum().item()
-                    # print(predicted_next_state_max, predicted_next_state_min)
-                    # print(uncertainty)
+                    predicted_next_state_means, predicted_next_state_variance = env_model.step(action)
+                    uncertainty = predicted_next_state_variance.sum().item()
 
                     uncertainty_sample.append(uncertainty)
 
@@ -319,23 +347,27 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     done = terminated or truncated
                     real_state = torch.tensor(real_state)
                     
-                    error = torch.abs(real_state - predicted_next_state_means).sum().item()
+                    error = torch.abs(real_state - predicted_next_state_means).sum().item() ** 2
                     error_sample.append(error)
                     
                     env.set_state_from_observation(predicted_next_state_means)
                     predicted_next_state_means = torch.Tensor(predicted_next_state_means).to(device)
-                    
-                    env_model.load_state(predicted_next_state_means)
+                    env_model.load_state(predicted_next_state_means, predicted_next_state_variance)
 
                     value_list[h] = 0 if done else target_net(predicted_next_state_means).max(0)[0].item()
                     reward_list[h] = reward
                     state = predicted_next_state_means
                 else:
                     break
-            
-            uncertainty_sample = list(np.cumsum(uncertainty_sample))
+
             uncertainty_sample = extend_list(uncertainty_sample, H)
+            # print(error_sample)
             # error_sample = list(np.cumsum(error_sample))
+            # print(error_sample)
+            
+            # f = open(f"test1.results", "a")
+            # f.write(str(uncertainty_sample))
+            # f.close()
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty_sample]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
@@ -349,27 +381,19 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
-            
-            # if uncertainty_sample[-1] == 0:
-            #     print(weights)
-            
+
             # Calculate the weighted average using weights
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
-            
-            # Means
-            # avg = discounted_rewards.mean()
-            # avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
-            
-            # print(uncertainty_sample,error_sample)
+
             predicted_uncertainties.append(uncertainty_sample[-1])
             true_errors.append(error_sample[-1])
-            
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
-
+        
+        f = open(f"test1.results", "a")
+        f.write("\n")
+        f.close()
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
 
@@ -421,7 +445,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
-    env_model = QuantileEnvModel(in_channels, num_actions, QUANTILES, env_hidden_size).to(device)
+    env_model = VarEnvModel(in_channels, num_actions, env_hidden_size).to(device)
     
     replay_start_size = 0
     if not target_off:
@@ -430,6 +454,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     if not replay_off:
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
+        env_buffer = rollout_replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size_policy, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
@@ -482,7 +507,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     t_prev = 0
     
     while t <= NUM_FRAMES:
-    
+        
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
         predicted_uncertainties = []
@@ -492,6 +517,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
+        rollout = []
         
         while (not is_terminated):
             # Generate data  
@@ -501,7 +527,15 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
-
+            
+            # Add current transition to rollout buffer
+            rollout.append(transition(s_cont, s_cont_prime, action, reward, is_terminated))
+            
+            # If we've collected enough transitions for a rollout, add it to the buffer and remove the oldest transition
+            if len(rollout) == ENV_H:
+                env_buffer.add(list(rollout))  # Make a copy of current rollout
+                rollout.pop(0)  # Remove the first transition
+        
             sample_policy = None
             sample_env = None
             if replay_off:
@@ -515,7 +549,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
                     sample_policy = r_buffer.sample(BATCH_SIZE)
-                    sample_env = r_buffer.sample(BATCH_SIZE)
+                    
+                    # Sample a rollout
+                    if len(env_buffer.buffer) >= BATCH_SIZE:  # Make sure we have enough rollouts to sample
+                        sample_env = env_buffer.sample(BATCH_SIZE)
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
@@ -526,7 +563,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
-                env_model_quantile, env_model_mean, env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
+                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
                     
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
@@ -545,9 +582,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         predicted_uncertainties = np.array(predicted_uncertainties)
         true_errors = np.array(true_errors)
         
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
-        
         # Calculate correlation coefficient
         correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
 
@@ -559,12 +593,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 1 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Quantiles: " + str(env_model_quantile.item()) + " | Env Model Means: " + str(env_model_mean.item())
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item())
                         )                    
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Quantiles: " + str(env_model_quantile.item()) + " | Env Model Means: " + str(env_model_mean.item())+ "\n"
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n"
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")

@@ -301,7 +301,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                     done = terminated or truncated
                     real_state = torch.tensor(real_state)
                     
-                    error = abs((real_state - predicted_next_state_means).sum().item()) ** 2
+                    error = torch.abs(real_state - predicted_next_state_means).sum().item() ** 2
                     # error_no_square = abs((real_state - predicted_next_state_means).sum().item())
                     # if error != error_no_square:
                     #     print(error, error_no_square)
@@ -320,8 +320,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
 
             uncertainty_sample = list(np.cumsum(uncertainty_sample))
             uncertainty_sample = extend_list(uncertainty_sample, H)
-            error_sample = list(np.cumsum(error_sample))
-            # print(error_sample)
+            # error_sample = list(np.cumsum(error_sample))
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty_sample]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
