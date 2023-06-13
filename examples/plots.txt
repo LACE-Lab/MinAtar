@@ -1,15 +1,14 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1 3
+-c 1
 -t 2
 -i
 -s 30
 -e
--l "Acrobot Model Selective MVE (dim=128, t=1)  "
--n /research/erin/zoshao/results/2023_06_09_acrobot_rollout_range_comparison_dim.128.png
--g "Model-free" "Rollout Range" "Random Range" "Variance" "Perfect Model"
--a /research/erin/zoshao/results/2023_06_02_acrobot_model_free_*.retry.results
--a /research/erin/zoshao/results/2023_06_09_acrobot_r2r_h3.dim.128.t.1.*.results
--a /research/erin/zoshao/results/2023_06_09_acrobot_range_h3.dim.128.t.1.*.results
--a /research/erin/zoshao/results/2023_06_08_acrobot_variance_h3.dim.128.t.1.*.results
--a /research/erin/zoshao/results/2023_06_02_acrobot_perfect_model_h3.*.results
+-l "Acrobot Selective MVE (H=3, dim=128)"
+-n /research/erin/zoshao/results/2023_06_13_acrobot_comparison.dim.128.t.0.5.png
+-g "Model-free" "Var t=0.5" "V2V t=0.5" "Perfect Model"
+-a /research/erin/zoshao/results/2023_06_13_acrobot_model_free_a.0.01.*.results
+-a /research/erin/zoshao/results/2023_06_12_acrobot_variance_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_12_acrobot_v2v_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_13_acrobot_perfect_model_h3.a.0.01.*.results
