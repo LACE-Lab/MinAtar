@@ -270,12 +270,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             reward_list = torch.zeros(H).to(device)
             value_list = torch.zeros(H).to(device)
             reward_list[0] = rewards[i]
+            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
-            
-            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+
+            uncertainty = [0]
             
             for h in range(1, H):
                 if not done:
@@ -295,7 +296,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    uncertainty = torch.abs(real_next_state - next_state).sum().item()
+                    uncertainty.append(torch.abs(real_next_state - next_state).sum().item())
                     env_loss = F.mse_loss(real_next_state, next_state)
                 else:
                     break
