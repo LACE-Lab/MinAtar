@@ -304,9 +304,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                 else:
                     break
             
-            # TODO: think about this more
-            uncertainty = extend_list(uncertainty, H)
+            # TODO: think more about this
             uncertainty = list(np.cumsum(uncertainty))
+            uncertainty = extend_list(uncertainty, H)
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
