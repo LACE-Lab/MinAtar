@@ -323,10 +323,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             
             uncertainty = extend_list(uncertainty, n=H, elem=uncertainty[-1])
             
-            f = open(f"test1.results", "a")
-            f.write(str(uncertainty)+"\n")
-            f.close()
-            
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
             weights = torch.Tensor(weights).to(device).unsqueeze(0)
