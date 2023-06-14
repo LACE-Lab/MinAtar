@@ -248,8 +248,8 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
-def extend_list(lst, n):
-    return lst + [0]*(n - len(lst))
+def extend_list(lst, n, elem):
+    return lst + [elem]*(n - len(lst))
 
 def softmax_with_temperature(x, temperature=1):
     e_x = np.exp((np.array(x) - np.max(x)) / temperature)
@@ -333,8 +333,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
                 else:
                     break
             
+            uncertainty_sample = extend_list(uncertainty_sample, n=H, elem=0)
             uncertainty_sample = list(np.cumsum(uncertainty_sample))
-            uncertainty_sample = extend_list(uncertainty_sample, H)
             # error_sample = list(np.cumsum(error_sample))
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty_sample]

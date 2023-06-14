@@ -228,8 +228,8 @@ def softmax_with_temperature(x, temperature=1):
     e_x = np.exp((np.array(x) - np.max(x)) / temperature)
     return e_x / e_x.sum()
 
-def extend_list(lst, n):
-    return lst + [0]*(n - len(lst))
+def extend_list(lst, n, elem):
+    return lst + [elem]*(n - len(lst))
     
 def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp):
     # unzip the batch samples and turn components into tensors
@@ -304,9 +304,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                 else:
                     break
             
-            # TODO: think more about this
+            uncertainty = extend_list(uncertainty, n=H, elem=0)
             uncertainty = list(np.cumsum(uncertainty))
-            uncertainty = extend_list(uncertainty, H)
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
