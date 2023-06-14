@@ -235,6 +235,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
+    
+    true_env = CustomAcrobot()
+    true_env.reset()
 
     batch_samples = transition(*zip(*sample))
 
@@ -264,6 +267,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
+            true_env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
             
             state = states[i]
@@ -278,6 +282,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            true_env.set_state_from_observation(batch_samples.next_state[i].numpy())
 
             uncertainty = [0]
             
@@ -286,6 +291,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     action = choose_greedy_action(next_state, policy_net)
                     
                     next_state = env_model.step(action)
+                    
                     # termination rule
                     real_next_state, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
@@ -299,13 +305,23 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    uncertainty.append(torch.abs(real_next_state - next_state).sum().item())
+                    true_next_state, _, true_terminated, true_truncated, _ = true_env.step(action.item())
+                    true_next_state = torch.tensor(true_next_state)
+                    
+                    # TODO: how to deal with this case? true_done is 1
+                    true_done = true_terminated or true_truncated
+                    
+                    uncertainty.append(torch.abs(true_next_state - next_state).sum().item())
                     env_loss = F.mse_loss(real_next_state, next_state)
+                
                 else:
                     break
             
-            uncertainty = extend_list(uncertainty, n=H, elem=0)
-            uncertainty = list(np.cumsum(uncertainty))
+            uncertainty = extend_list(uncertainty, n=H, elem=uncertainty[-1])
+            
+            f = open(f"test1.results", "a")
+            f.write(str(uncertainty)+"\n")
+            f.close()
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
