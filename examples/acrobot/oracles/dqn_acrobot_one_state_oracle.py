@@ -286,13 +286,16 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     action = choose_greedy_action(next_state, policy_net)
                     next_state = env_model.step(action)
 
-                    # hardcode termination rule
-                    position = next_state[0]
-                    angle = next_state[2]
+                    cosTheta1 = next_state[0]
+                    sinTheta1 = next_state[1]
+                    cosTheta2 = next_state[2]
+                    sinTheta2 = next_state[3]
+                    dTheta1 = next_state[4]
+                    dTheta2 = next_state[5]
 
                     done = False
                     reward = -1
-                    if position <= -2.4 or position >= 2.4 or angle <= -.2095 or angle >= .2095:
+                    if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
                         done = True
                         reward = 0
                      

@@ -235,9 +235,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
-    
-    true_env = CustomAcrobot()
-    true_env.reset()
 
     batch_samples = transition(*zip(*sample))
 
@@ -267,7 +264,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
-            true_env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
             
             state = states[i]
@@ -282,9 +278,11 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
-            true_env.set_state_from_observation(batch_samples.next_state[i].numpy())
 
             uncertainty = [0]
+            
+            # termination signal for true environment
+            real_done = done
             
             for h in range(1, H):
                 if not done:
@@ -292,26 +290,32 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     
                     next_state = env_model.step(action)
                     
-                    # termination rule
-                    real_next_state, reward, terminated, truncated, _ = env.step(action.item())
-                    done = terminated or truncated
-                    real_next_state = torch.tensor(real_next_state)
+                    # hardcode termination rule
+                    cosTheta1 = next_state[0]
+                    sinTheta1 = next_state[1]
+                    cosTheta2 = next_state[2]
+                    sinTheta2 = next_state[3]
+                    dTheta1 = next_state[4]
+                    dTheta2 = next_state[5]
 
-                    env.set_state_from_observation(next_state)
-                    next_state = torch.Tensor(next_state).to(device)
+                    done = False
+                    reward = -1
+                    if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
+                        done = True
+                        reward = 0
                     
+                    if not real_done:
+                        real_next_state, real_reward, real_terminated, real_truncated, _ = env.step(action.item())
+                        real_done = real_terminated or real_truncated
+                        real_next_state = torch.tensor(real_next_state)
+
+                    next_state = torch.Tensor(next_state).to(device)                   
                     env_model.load_state(next_state)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    true_next_state, _, true_terminated, true_truncated, _ = true_env.step(action.item())
-                    true_next_state = torch.tensor(true_next_state)
-                    
-                    # TODO: how to deal with this case? true_done is 1
-                    true_done = true_terminated or true_truncated
-                    
-                    uncertainty.append(torch.abs(true_next_state - next_state).sum().item())
+                    uncertainty.append(torch.abs(real_next_state - next_state).sum().item())
                     env_loss = F.mse_loss(real_next_state, next_state)
                 
                 else:
