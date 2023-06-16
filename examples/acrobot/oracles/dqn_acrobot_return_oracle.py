@@ -322,8 +322,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     
                     true_value_list[h] = 0 if real_done else target_net(real_next_state).max(0)[0].item()
                     true_reward_list[h] = real_reward
-                    
-                    uncertainty.append(torch.abs(real_next_state - next_state).sum().item())
+                
                     env_loss = F.mse_loss(real_next_state, next_state)
                 
                 else:

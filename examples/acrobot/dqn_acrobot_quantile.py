@@ -255,10 +255,15 @@ def softmax_with_temperature(x, temperature=1):
     e_x = np.exp((np.array(x) - np.max(x)) / temperature)
     return e_x / e_x.sum()
 
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, predicted_uncertainties, true_errors, temp):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, 
+                     predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
+                     one_step_true_errors, multi_step_true_errors, temp):
     # unzip the batch samples and turn components into tensors
-    env = CustomAcrobot()
-    env.reset()
+    one_step_env = CustomAcrobot()
+    one_step_env.reset()
+    
+    multi_step_env = CustomAcrobot()
+    multi_step_env.reset()
 
     batch_samples = transition(*zip(*sample))
 
@@ -286,7 +291,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
 
         for i in range(BATCH_SIZE):
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
-            env.set_state_from_observation(initial_state)
+            one_step_env.set_state_from_observation(initial_state)
+            multi_step_env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
             
             state = states[i]
@@ -295,47 +301,77 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             
             reward_list = torch.zeros(H).to(device)
             value_list = torch.zeros(H).to(device)
+            true_reward_list = torch.zeros(H).to(device)
+            true_value_list = torch.zeros(H).to(device)
+            
             reward_list[0] = rewards[i]
             value_list[0] = 0 if done else target_net(next_state).detach().max(0)[0].item()
+            true_reward_list[0] = rewards[i]
+            true_value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
-            env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            one_step_env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            multi_step_env.set_state_from_observation(batch_samples.next_state[i].numpy())
             
             uncertainty_sample = [0]
-            error_sample = [0]
+            
+            real_done = done
 
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     predicted_next_state_means, predicted_next_state_min, predicted_next_state_max = env_model.step(action)
                     uncertainty = torch.abs(predicted_next_state_max - predicted_next_state_min).sum().item()
-                    # print(predicted_next_state_max, predicted_next_state_min)
-                    # print(uncertainty)
 
                     uncertainty_sample.append(uncertainty)
+                    predicted_one_step_uncertainties.append(uncertainty)
+                    
+                    # hardcode termination rule
+                    cosTheta1 = next_state[0]
+                    sinTheta1 = next_state[1]
+                    cosTheta2 = next_state[2]
+                    sinTheta2 = next_state[3]
+                    dTheta1 = next_state[4]
+                    dTheta2 = next_state[5]
 
-                    real_state, reward, terminated, truncated, _ = env.step(action.item())
-                    done = terminated or truncated
-                    real_state = torch.tensor(real_state)
+                    done = False
+                    reward = -1
+                    if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
+                        done = True
+                        reward = 0
+                        
+                    real_one_next_state, _, _, _, _ = one_step_env.step(action.item())
+                    real_one_next_state = torch.tensor(real_one_next_state)
                     
-                    error = torch.abs(real_state - predicted_next_state_means).sum().item()
-                    error_sample.append(error)
+                    if not real_done:
+                        real_multi_next_state, real_reward, real_terminated, real_truncated, _ = multi_step_env.step(action.item())
+                        real_done = real_terminated or real_truncated
+                        real_multi_next_state = torch.tensor(real_multi_next_state)
                     
-                    env.set_state_from_observation(predicted_next_state_means)
+                    one_step_error = torch.abs(real_one_next_state - predicted_next_state_means).sum().item()
+                    one_step_true_errors.append(one_step_error)
+                    
+                    multi_step_error = torch.abs(real_multi_next_state - predicted_next_state_means).sum().item()
+                    multi_step_true_errors.append(multi_step_error)
+                    
+                    one_step_env.set_state_from_observation(predicted_next_state_means)
                     predicted_next_state_means = torch.Tensor(predicted_next_state_means).to(device)
                     
                     env_model.load_state(predicted_next_state_means)
 
                     value_list[h] = 0 if done else target_net(predicted_next_state_means).max(0)[0].item()
                     reward_list[h] = reward
+                    true_value_list[h] = 0 if real_done else target_net(real_multi_next_state).max(0)[0].item()
+                    true_reward_list[h] = real_reward
+                    
                     state = predicted_next_state_means
                 else:
                     break
             
             uncertainty_sample = extend_list(uncertainty_sample, n=H, elem=0)
             uncertainty_sample = list(np.cumsum(uncertainty_sample))
-            # error_sample = list(np.cumsum(error_sample))
+            predicted_multi_step_uncertainties += uncertainty_sample[1:]
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty_sample]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
@@ -350,25 +386,25 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
             
-            # if uncertainty_sample[-1] == 0:
-            #     print(weights)
+            # for true env (oracles)
+            true_indices = torch.arange(0, len(true_reward_list)).unsqueeze(0).float()
+            true_indices_val = torch.arange(1, len(true_reward_list) + 1).unsqueeze(0).float()
+            
+            true_gamma_powers = GAMMA ** true_indices
+            true_gamma_powers_val = GAMMA ** true_indices_val
+            
+            true_running_reward = (true_gamma_powers * true_reward_list).cumsum(dim=1)
+            true_discounted_rewards = true_running_reward + true_gamma_powers_val * true_value_list
+            
+            return_error = list(torch.abs(discounted_rewards - true_discounted_rewards).squeeze().squeeze())
+            return_error = [tensor.item() for tensor in return_error]
+            return_errors += return_error[1:]
             
             # Calculate the weighted average using weights
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
-            
-            # Means
-            # avg = discounted_rewards.mean()
-            # avg = torch.Tensor([avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
-            
-            # print(uncertainty_sample,error_sample)
-            predicted_uncertainties.append(uncertainty_sample[-1])
-            true_errors.append(error_sample[-1])
-            
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
@@ -379,7 +415,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
     loss.backward()
     optimizer.step()
     
-    return predicted_uncertainties, true_errors
+    # print("hey ", predicted_one_step_uncertainties)
+    # print(predicted_multi_step_uncertainties)
+    # print(return_errors)
+    # print(one_step_true_errors)
+    # print(multi_step_true_errors)
+    
+    return predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors, one_step_true_errors, multi_step_true_errors
 
 ################################################################################################################
 # dqn
@@ -401,7 +443,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, pr
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
-    f.write("Score\t#Frames\tCoefficient\n")
+    f.write("Score\t#Frames\tOne Step State Coefficient\tMulti Step State Coefficient\tTarget Coefficient\n")
     f.close()
     
     # Set up the seed
@@ -485,8 +527,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
-        predicted_uncertainties = []
-        true_errors = []
+
+        predicted_one_step_uncertainties = []
+        predicted_multi_step_uncertainties = []
+        return_errors = []
+        one_step_true_errors = [] 
+        multi_step_true_errors = []
 
         # Initialize the environment and start state
         
@@ -519,10 +565,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    predicted_uncertainties, true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, predicted_uncertainties, true_errors, temp)
+                    predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors, one_step_true_errors, multi_step_true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, 
+                                                                                         predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
+                                                                                         one_step_true_errors, multi_step_true_errors, temp)
                 else:
                     policy_net_update_counter += 1
-                    predicted_uncertainties, true_errors = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, predicted_uncertainties, true_errors, temp)
+                    predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors, one_step_true_errors, multi_step_true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, 
+                                                                                         predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
+                                                                                         one_step_true_errors, multi_step_true_errors, temp)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -542,14 +592,17 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         # Increment the episodes
         e += 1
         
-        predicted_uncertainties = np.array(predicted_uncertainties)
-        true_errors = np.array(true_errors)
-        
-        # print(predicted_uncertainties, true_errors)
-        # print(len(predicted_uncertainties), len(true_errors))
+        predicted_one_step_uncertainties = np.array(predicted_one_step_uncertainties)
+        predicted_multi_step_uncertainties = np.array(predicted_multi_step_uncertainties)
+        return_errors = np.array(return_errors)
+        one_step_true_errors = np.array(one_step_true_errors)
+        multi_step_true_errors = np.array(multi_step_true_errors)
         
         # Calculate correlation coefficient
-        correlation_coeff = np.corrcoef(predicted_uncertainties, true_errors)[0, 1]
+        one_state_correlation_coeff = np.corrcoef(predicted_one_step_uncertainties, one_step_true_errors)[0, 1]
+        print(len(predicted_multi_step_uncertainties), len(multi_step_true_errors))
+        multi_state_correlation_coeff = np.corrcoef(predicted_multi_step_uncertainties, multi_step_true_errors)[0, 1]
+        target_correlation_coeff = np.corrcoef(return_errors, multi_step_true_errors)[0, 1]
 
         # Save the return for each episode
         data_return.append(G)
@@ -568,7 +621,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t-t_prev) + "\t" + str(correlation_coeff) + "\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\t" + str(one_state_correlation_coeff) + "\t" + str(multi_state_correlation_coeff) + "\t" + str(target_correlation_coeff) + "\n")
             f.close()
             
         t_prev = t
