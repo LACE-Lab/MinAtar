@@ -360,7 +360,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
             weights = weights * decays
             
-            weighted_avg = (weights * discounted_rewards).sum()
+            weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()

@@ -295,7 +295,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
             weights = weights * decays
 
             # Calculate the average
-            weighted_avg = (weights * discounted_rewards).sum()
+            weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
