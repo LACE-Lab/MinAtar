@@ -350,12 +350,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             true_discounted_rewards = true_running_reward + true_gamma_powers_val * true_value_list
             
             uncertainty = torch.abs(discounted_rewards - true_discounted_rewards).squeeze()
-            decays = torch.tensor([decay**i for i in range(len(uncertainty))])
-            uncertainty = uncertainty * decays
 
             negative_uncertainty = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty, temp)
             weights = torch.Tensor(weights).to(device).unsqueeze(0)
+            
+            decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
+            weights = weights * decays
             
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()

@@ -318,12 +318,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             
             uncertainty = extend_list(uncertainty, n=H, elem=0)
             uncertainty = torch.tensor(list(np.cumsum(uncertainty)))
-            decays = torch.tensor([decay**i for i in range(len(uncertainty))])    
-            uncertainty = uncertainty * decays
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
             weights = torch.Tensor(weights).to(device).unsqueeze(0)
+            
+            decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
+            weights = weights * decays
+            
+            print(weights, decays)
             
             indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
             indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
