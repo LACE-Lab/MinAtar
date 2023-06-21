@@ -41,6 +41,7 @@ GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
+DECAY = 1
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -207,7 +208,11 @@ def choose_greedy_action(state, policy_net):
 
     return action
 
-def trainWithRollout(sample, policy_net, target_net, optimizer, H):
+def softmax_with_temperature(x, temperature=1):
+    e_x = np.exp((np.array(x) - np.max(x)) / temperature)
+    return e_x / e_x.sum()
+
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
@@ -283,9 +288,16 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
 
+            uncertainty = [0 for _ in range(H)]
+            weights = softmax_with_temperature(uncertainty)
+            weights = torch.Tensor(weights).to(device).unsqueeze(0)
+
+            decays = torch.tensor([decay**i for i in range(H)])
+            weights = weights * decays
+
             # Calculate the average
-            avg = discounted_rewards.mean()
-            avg = torch.Tensor([avg.item()]).detach()
+            weighted_avg = (weights * discounted_rewards).sum()
+            avg = torch.Tensor([weighted_avg.item()]).detach()
 
             target = torch.cat((target, avg)).detach()
 
@@ -304,7 +316,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H):
 # DQN algorithm with the option to disable replay and/or target network, and the function saves the training data.
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H, seed=SEED):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H, seed=SEED, decay=DECAY):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\n")
@@ -415,11 +427,11 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    trainWithRollout(sample, policy_net, policy_net, optimizer, rollout_constant)
+                    trainWithRollout(sample, policy_net, policy_net, optimizer, rollout_constant, decay)
                     # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
-                    trainWithRollout(sample, policy_net, target_net, optimizer, rollout_constant)
+                    trainWithRollout(sample, policy_net, target_net, optimizer, rollout_constant, decay)
                     # train(sample, policy_net, policy_net, optimizer)
 
             # Update the target network only after some number of policy network updates
@@ -490,6 +502,7 @@ def main():
     parser.add_argument("--loadfile", "-l", type=str)
     parser.add_argument("--alpha", "-a", type=float, default=STEP_SIZE)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
+    parser.add_argument("--decay", "-dc", type=float, default=DECAY)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
@@ -514,7 +527,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout, args.seed)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout, args.seed, args.decay)
 
 
 if __name__ == '__main__':

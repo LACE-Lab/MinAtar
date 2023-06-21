@@ -46,6 +46,7 @@ H = 1 # rollout constant
 SEED = 42
 ENV_HIDDEN_SIZE = 128
 TEMPERATURE = 1
+DECAY = 0.9
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -231,7 +232,7 @@ def softmax_with_temperature(x, temperature=1):
 def extend_list(lst, n, elem):
     return lst + [elem]*(n - len(lst))
     
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
@@ -316,7 +317,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     break
             
             uncertainty = extend_list(uncertainty, n=H, elem=0)
-            uncertainty = list(np.cumsum(uncertainty))
+            uncertainty = torch.tensor(list(np.cumsum(uncertainty)))
+            decays = torch.tensor([decay**i for i in range(len(uncertainty))])    
+            uncertainty = uncertainty * decays
             
             negative_uncertainty_sample = [-1 * x for x in uncertainty]
             weights = softmax_with_temperature(negative_uncertainty_sample, temp)
@@ -363,7 +366,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE, decay=DECAY):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\n")
@@ -483,10 +486,10 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    env_loss = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp)
+                    env_loss = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay)
                 else:
                     policy_net_update_counter += 1
-                    env_loss = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp)
+                    env_loss = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -565,6 +568,7 @@ def main():
     parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--temp", "-tp", type=float, default=TEMPERATURE)
+    parser.add_argument("--decay", "-dc", type=float, default=DECAY)
     parser.add_argument("--hidden", "-hs", type=int, default=ENV_HIDDEN_SIZE)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
@@ -589,7 +593,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden, args.temp)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden, args.temp, args.decay)
 
 
 if __name__ == '__main__':

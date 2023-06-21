@@ -48,6 +48,7 @@ SEED = 42
 ENV_HIDDEN_SIZE = 128
 QUANTILES = [0.05, 0.95]  # The target quantiles
 TEMPERATURE = 1
+DECAY = 0.9
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
@@ -257,7 +258,7 @@ def softmax_with_temperature(x, temperature=1):
 
 def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, 
                      predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
-                     one_step_true_errors, multi_step_true_errors, temp):
+                     one_step_true_errors, multi_step_true_errors, temp, decay):
     # unzip the batch samples and turn components into tensors
     one_step_env = CustomAcrobot()
     one_step_env.reset()
@@ -440,7 +441,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model,
 #   step_size: step-size for RMSProp optimizer
 #
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE, decay=DECAY):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\tOne Step State Coefficient\tMulti Step State Coefficient\tTarget Coefficient\n")
@@ -567,12 +568,12 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 if target_off:
                     predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors, one_step_true_errors, multi_step_true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, 
                                                                                          predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
-                                                                                         one_step_true_errors, multi_step_true_errors, temp)
+                                                                                         one_step_true_errors, multi_step_true_errors, temp, decay)
                 else:
                     policy_net_update_counter += 1
                     predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors, one_step_true_errors, multi_step_true_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, 
                                                                                          predicted_one_step_uncertainties, predicted_multi_step_uncertainties, return_errors,
-                                                                                         one_step_true_errors, multi_step_true_errors, temp)
+                                                                                         one_step_true_errors, multi_step_true_errors, temp, decay)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -661,6 +662,7 @@ def main():
     parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
     parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
     parser.add_argument("--temp", "-tp", type=float, default=TEMPERATURE)
+    parser.add_argument("--decay", "-dc", type=float, default=DECAY)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
     parser.add_argument("--hidden", "-hs", type=int, default=ENV_HIDDEN_SIZE)
     parser.add_argument("--seed", "-d", type=int, default=SEED)
@@ -687,7 +689,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden, args.temp)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden, args.temp, args.decay)
 
 
 if __name__ == '__main__':
