@@ -288,8 +288,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
 
-            uncertainty = [0 for _ in range(H)]
-            weights = softmax_with_temperature(uncertainty)
+            weights = torch.ones(H)
             weights = torch.Tensor(weights).to(device).unsqueeze(0)
 
             decays = torch.tensor([decay**i for i in range(H)])
@@ -298,6 +297,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
             # Calculate the average
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
+            
+            print(discounted_rewards, weights, avg)
 
             target = torch.cat((target, avg)).detach()
 
