@@ -302,12 +302,16 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
+        
+        print(target)
 
     loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+    
+    return loss
 
 ################################################################################################################
 # dqn
