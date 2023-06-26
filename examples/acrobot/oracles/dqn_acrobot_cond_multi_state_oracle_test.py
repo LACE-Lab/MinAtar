@@ -238,6 +238,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     env = CustomAcrobot()
     env.reset()
     
+    perfect_env = CustomAcrobot()
+    env.reset()
+    
     full_env = CustomAcrobot()
     full_env.reset()
 
@@ -262,7 +265,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         if len(none_terminal_next_states) != 0:
             Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
         target = rewards + GAMMA * Q_s_prime_a_prime
-        perfect_target = rewards + GAMMA * Q_s_prime_a_prime
    
     else:
         # Now, we are in the H>1 scenario, where we perform rollouts
@@ -299,6 +301,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             full_next_state = next_state
             full_done = done
             
+            # termination signal for true environment
+            real_done = done
+            
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(next_state, policy_net)
@@ -318,19 +323,19 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                         done = True
                         reward = 0
                      
-                    # One step state
-                    real_next_state, _, _, _, _ = env.step(action.item())
-                    real_next_state = torch.tensor(real_next_state)
-
-                    # Get back to model state
-                    env.set_state_from_observation(next_state)
+                    # Multi step state
+                    if not real_done:
+                        real_next_state, real_reward, real_terminated, real_truncated, _ = env.step(action.item())
+                        real_done = real_terminated or real_truncated
+                        real_next_state = torch.tensor(real_next_state)
                     next_state = torch.Tensor(next_state).to(device)
+                    
                     env_model.load_state(next_state)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    # One step state error
+                    # multi step state error
                     diff = torch.abs(real_next_state - next_state).sum().item()
                     uncertainty.append(diff)
                     
@@ -342,13 +347,14 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     
                     full_value_list[h] = 0 if full_done else target_net(full_next_state).max(0)[0].item()
                     full_reward_list[h] = full_reward
+
                 else:
                     break
             
             # Uncertainty is one-step error
             uncertainty = extend_list(uncertainty, n=H, elem=0)
             error_list = uncertainty
-            uncertainty = torch.tensor(list(np.cumsum(uncertainty)))
+            uncertainty = torch.tensor(uncertainty)
             uncertainty_list = uncertainty.tolist()
 
             for index, val in enumerate(error_list):
@@ -401,28 +407,90 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
             target = torch.cat((target, avg)).detach()
-            
-            perfect_weights = torch.ones(H)
-            perfect_weights = torch.Tensor(perfect_weights).to(device).unsqueeze(0)
-            perfect_weights = perfect_weights * decays
-            
-            print(perfect_weights)
-
-            # Calculate the average
-            perfect_weighted_avg = (perfect_weights * true_discounted_rewards).sum() / perfect_weights.sum()
-            perfect_avg = torch.Tensor([perfect_weighted_avg.item()]).detach()
-
-            perfect_target = torch.cat((perfect_target, perfect_avg)).detach()
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
+        TD_error = target - Q_s_a
+    
+    # Perfect Model    
+    if H == 1:
+        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
+        none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+        none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+        Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
+        if len(none_terminal_next_states) != 0:
+            Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+        perfect_target = rewards + GAMMA * Q_s_prime_a_prime
+   
+    else:
+        perfect_target = torch.empty((0))
+        f = open(f"states1.results", "a")
+        f.write(str(states))
+        f.close()
+
+        for i in range(BATCH_SIZE):
+
+            initial_state = batch_samples.state[i].numpy()
+            perfect_env.set_state_from_observation(initial_state)
+            
+            state = states[i]
+            next_state = next_states[i]
+            done = is_terminal[i]
+
+            reward_list = torch.zeros(H).to(device)
+            value_list = torch.zeros(H).to(device)
+            
+            reward_list[0] = rewards[i]
+            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+            
+            perfect_env.set_state_from_observation(batch_samples.next_state[i].numpy())
+
+            for h in range(1, H):
+                if not done:
+                    action = choose_greedy_action(state, policy_net)
+                    
+                    next_state, reward, terminated, truncated, _ = perfect_env.step(action.item())
+                    done = terminated or truncated
+                    
+                    perfect_env.set_state_from_observation(next_state)
+                    next_state = torch.Tensor(next_state).to(device)
+
+                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                    reward_list[h] = reward
+
+                    state = next_state
+                else:
+                    break
+
+            # Create a tensor with indices for the power operation
+            indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
+            indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+
+            # Compute the gamma powers
+            gamma_powers = GAMMA ** indices
+            gamma_powers_val = GAMMA ** indices_val
+
+            # Calculate the discounted rewards
+            running_reward = (gamma_powers * reward_list).cumsum(dim=1)
+            discounted_rewards = running_reward + gamma_powers_val * value_list
+
+            weights = torch.ones(H)
+            weights = torch.Tensor(weights).to(device).unsqueeze(0)
+
+            decays = torch.tensor([decay**i for i in range(H)])
+            weights = weights * decays
+
+            # Calculate the average
+            weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
+            avg = torch.Tensor([weighted_avg.item()]).detach()
+
+            perfect_target = torch.cat((perfect_target, avg)).detach()
+
         perfect_target.requires_grad = True
         perfect_target = perfect_target.reshape(BATCH_SIZE, 1)
         
-        TD_error = target - Q_s_a
         perfect_TD_error = perfect_target - Q_s_a
-        
-        f = open(f"after_change.results", "a")
+        f = open(f"test1.results", "a")
         f.write(str(perfect_target))
         f.close()
     

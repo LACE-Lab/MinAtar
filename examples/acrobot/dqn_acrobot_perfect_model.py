@@ -229,6 +229,10 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
     is_terminal = torch.tensor(batch_samples.is_terminal).to(device).reshape(BATCH_SIZE, 1)
 
     Q_s_a = policy_net(states).gather(1, actions)
+    
+    f = open(f"states2.results", "a")
+    f.write(str(states))
+    f.close()
 
     if H == 1:
         # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
@@ -303,7 +307,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
         
-        print(target)
+        f = open(f"test2.results", "a")
+        f.write(str(target))
+        f.close()
 
     loss = F.mse_loss(Q_s_a, target)
 
