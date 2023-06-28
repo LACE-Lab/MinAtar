@@ -3,10 +3,7 @@
 # Zoe
 #
 # This file contains DQN alg training with Cart Pole.
-# Incorpeted MVE, NN for Env model
-# The Env model predicts only the state
-# The reward and termination rule are hardcoded
-# one step state orcale
+# Incorpeted MVE, rollout with perfect model
 ################################################################################################################
 
 import torch
@@ -238,9 +235,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     env = CustomAcrobot()
     env.reset()
     
-    perfect_env = CustomAcrobot()
-    env.reset()
-    
     full_env = CustomAcrobot()
     full_env.reset()
 
@@ -301,9 +295,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             full_next_state = next_state
             full_done = done
             
-            # termination signal for true environment
-            real_done = done
-            
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(next_state, policy_net)
@@ -323,11 +314,12 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                         done = True
                         reward = 0
                      
-                    # Multi step state
-                    if not real_done:
-                        real_next_state, real_reward, real_terminated, real_truncated, _ = env.step(action.item())
-                        real_done = real_terminated or real_truncated
-                        real_next_state = torch.tensor(real_next_state)
+                    # One step state
+                    real_next_state, _, _, _, _ = env.step(action.item())
+                    real_next_state = torch.tensor(real_next_state)
+
+                    # Get back to model state
+                    env.set_state_from_observation(next_state)
                     next_state = torch.Tensor(next_state).to(device)
                     
                     env_model.load_state(next_state)
@@ -335,7 +327,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    # multi step state error
+                    # One step state error
                     diff = torch.abs(real_next_state - next_state).sum().item()
                     uncertainty.append(diff)
                     
@@ -354,7 +346,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             # Uncertainty is one-step error
             uncertainty = extend_list(uncertainty, n=H, elem=0)
             error_list = uncertainty
-            uncertainty = torch.tensor(uncertainty)
+            uncertainty = torch.tensor(list(np.cumsum(uncertainty)))
             uncertainty_list = uncertainty.tolist()
 
             for index, val in enumerate(error_list):
@@ -428,7 +420,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         for i in range(BATCH_SIZE):
 
             initial_state = batch_samples.state[i].numpy()
-            perfect_env.set_state_from_observation(initial_state)
+            env.set_state_from_observation(initial_state)
             
             state = states[i]
             next_state = next_states[i]
@@ -440,16 +432,16 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             reward_list[0] = rewards[i]
             value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
             
-            perfect_env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            env.set_state_from_observation(batch_samples.next_state[i].numpy())
 
             for h in range(1, H):
                 if not done:
                     action = choose_greedy_action(state, policy_net)
                     
-                    next_state, reward, terminated, truncated, _ = perfect_env.step(action.item())
+                    next_state, reward, terminated, truncated, _ = env.step(action.item())
                     done = terminated or truncated
                     
-                    perfect_env.set_state_from_observation(next_state)
+                    env.set_state_from_observation(next_state)
                     next_state = torch.Tensor(next_state).to(device)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
@@ -487,8 +479,9 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         perfect_target = perfect_target.reshape(BATCH_SIZE, 1)
         
         perfect_TD_error = perfect_target - Q_s_a
+        
     
-    loss = F.mse_loss(Q_s_a, target)
+    loss = F.mse_loss(Q_s_a, perfect_target)
     
     td_diff = torch.abs(TD_error - perfect_TD_error).squeeze()
     td_diff_list = td_diff.tolist()
