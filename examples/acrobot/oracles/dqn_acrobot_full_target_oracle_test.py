@@ -23,6 +23,7 @@ import numpy as np
 
 from collections import namedtuple
 from customAcrobot import CustomAcrobot
+from scipy.stats import pearsonr
 
 ################################################################################################################
 # Constants
@@ -232,10 +233,13 @@ def softmax_with_temperature(x, temperature=1):
 def extend_list(lst, n, elem):
     return lst + [elem]*(n - len(lst))
     
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay, errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
+
+    full_env = CustomAcrobot()
+    full_env.reset()
 
     batch_samples = transition(*zip(*sample))
 
@@ -262,9 +266,13 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     else:
         # Now, we are in the H>1 scenario, where we perform rollouts
         target = torch.empty((0))
+
         for i in range(BATCH_SIZE):
+            
+            # Using Oracle
             initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
             env.set_state_from_observation(initial_state)
+            full_env.set_state_from_observation(initial_state)
             env_model.load_state(initial_state)
             
             state = states[i]
@@ -273,32 +281,29 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             
             reward_list = torch.zeros(H).to(device)
             value_list = torch.zeros(H).to(device)
-            true_reward_list = torch.zeros(H).to(device)
-            true_value_list = torch.zeros(H).to(device)
-            
             reward_list[0] = rewards[i]
             value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-            true_reward_list[0] = rewards[i]
-            true_value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+            
+            full_reward_list = torch.zeros(H).to(device)
+            full_value_list = torch.zeros(H).to(device)
+            full_reward_list[0] = rewards[i]
+            full_value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
             
             next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
             env_model.load_state(next_state)
             env.set_state_from_observation(batch_samples.next_state[i].numpy())
+            full_env.set_state_from_observation(batch_samples.next_state[i].numpy())
 
             uncertainty = [0]
-            
-            # termination signal for true environment
-            real_done = done
-            real_next_state = next_state
+            full_next_state = next_state
+            full_done = done
             
             for h in range(1, H):
                 if not done:
-                    model_action = choose_greedy_action(next_state, policy_net)
-                    env_action = choose_greedy_action(real_next_state, policy_net)
-                    
-                    next_state = env_model.step(model_action)
-                    
-                    # hardcode termination rule
+                    action = choose_greedy_action(next_state, policy_net)
+                    full_action = choose_greedy_action(full_next_state, policy_net)
+                    next_state = env_model.step(action)
+
                     cosTheta1 = next_state[0]
                     sinTheta1 = next_state[1]
                     cosTheta2 = next_state[2]
@@ -311,27 +316,25 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
                         done = True
                         reward = 0
-                    
-                    if not real_done:
-                        real_next_state, real_reward, real_terminated, real_truncated, _ = env.step(env_action.item())
-                        real_done = real_terminated or real_truncated
-                        real_next_state = torch.tensor(real_next_state)
-
-                    next_state = torch.Tensor(next_state).to(device)                   
+                     
+                    next_state = torch.Tensor(next_state).to(device)
                     env_model.load_state(next_state)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
                     
-                    true_value_list[h] = 0 if real_done else target_net(real_next_state).max(0)[0].item()
-                    true_reward_list[h] = real_reward
-                
-                    env_loss = F.mse_loss(real_next_state, next_state)
-                
+                    # full env (not using the same action as rollout)
+                    if not full_done:
+                        full_next_state, full_reward, full_terminated, full_truncated, _ = full_env.step(full_action.item())
+                        full_done = full_terminated or full_truncated
+                        full_next_state = torch.tensor(full_next_state)
+                    
+                    full_value_list[h] = 0 if full_done else target_net(full_next_state).max(0)[0].item()
+                    full_reward_list[h] = full_reward
+
                 else:
                     break
             
-            # for env model returns
             indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
             indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
             
@@ -341,15 +344,15 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             running_reward = (gamma_powers * reward_list).cumsum(dim=1)
             discounted_rewards = running_reward + gamma_powers_val * value_list
             
-            # for true env (oracles)
-            true_indices = torch.arange(0, len(true_reward_list)).unsqueeze(0).float()
-            true_indices_val = torch.arange(1, len(true_reward_list) + 1).unsqueeze(0).float()
+            # for full env (oracles)
+            true_indices = torch.arange(0, len(full_reward_list)).unsqueeze(0).float()
+            true_indices_val = torch.arange(1, len(full_reward_list) + 1).unsqueeze(0).float()
             
             true_gamma_powers = GAMMA ** true_indices
             true_gamma_powers_val = GAMMA ** true_indices_val
             
-            true_running_reward = (true_gamma_powers * true_reward_list).cumsum(dim=1)
-            true_discounted_rewards = true_running_reward + true_gamma_powers_val * true_value_list
+            true_running_reward = (true_gamma_powers * full_reward_list).cumsum(dim=1)
+            true_discounted_rewards = true_running_reward + true_gamma_powers_val * full_value_list
             
             uncertainty = torch.abs(discounted_rewards - true_discounted_rewards).squeeze()
 
@@ -357,23 +360,125 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             weights = softmax_with_temperature(negative_uncertainty, temp)
             weights = torch.Tensor(weights).to(device).unsqueeze(0)
             
+            error_list = uncertainty.tolist()
+            for index, val in enumerate(error_list):
+                errors_per_step[index].append(val)
+                
+            overall_errors += error_list
+            
             decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
             weights = weights * decays
             
+            weights_list = weights.squeeze().tolist()
+
+            for index, val in enumerate(weights_list):
+                weights_per_step[index % H].append(val)
+            
+            effective_planning_horizon = sum(i * weight for i, weight in enumerate(weights_list, 1))
+            effective_planning_horizons.append(effective_planning_horizon)
+            
+            # Calculate weighted avg (target)
             weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
-
             target = torch.cat((target, avg)).detach()
 
         target.requires_grad = True
         target = target.reshape(BATCH_SIZE, 1)
+        TD_error = target - Q_s_a
+    
+    # Perfect Model    
+    if H == 1:
+        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
+        none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+        none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
+        Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
+        if len(none_terminal_next_states) != 0:
+            Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
+        perfect_target = rewards + GAMMA * Q_s_prime_a_prime
+   
+    else:
+        perfect_target = torch.empty((0))
+
+        for i in range(BATCH_SIZE):
+
+            initial_state = batch_samples.state[i].numpy()
+            env.set_state_from_observation(initial_state)
+            
+            state = states[i]
+            next_state = next_states[i]
+            done = is_terminal[i]
+
+            reward_list = torch.zeros(H).to(device)
+            value_list = torch.zeros(H).to(device)
+            
+            reward_list[0] = rewards[i]
+            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
+            
+            env.set_state_from_observation(batch_samples.next_state[i].numpy())
+
+            for h in range(1, H):
+                if not done:
+                    action = choose_greedy_action(state, policy_net)
+                    
+                    next_state, reward, terminated, truncated, _ = env.step(action.item())
+                    done = terminated or truncated
+                    
+                    env.set_state_from_observation(next_state)
+                    next_state = torch.Tensor(next_state).to(device)
+
+                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
+                    reward_list[h] = reward
+
+                    state = next_state
+                else:
+                    break
+
+            # Create a tensor with indices for the power operation
+            indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
+            indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
+
+            # Compute the gamma powers
+            gamma_powers = GAMMA ** indices
+            gamma_powers_val = GAMMA ** indices_val
+
+            # Calculate the discounted rewards
+            running_reward = (gamma_powers * reward_list).cumsum(dim=1)
+            discounted_rewards = running_reward + gamma_powers_val * value_list
+
+            weights = torch.ones(H)
+            weights = torch.Tensor(weights).to(device).unsqueeze(0)
+
+            decays = torch.tensor([decay**i for i in range(H)])
+            weights = weights * decays
+
+            # Calculate the average
+            weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
+            avg = torch.Tensor([weighted_avg.item()]).detach()
+
+            perfect_target = torch.cat((perfect_target, avg)).detach()
+
+        perfect_target.requires_grad = True
+        perfect_target = perfect_target.reshape(BATCH_SIZE, 1)
+        
+        perfect_TD_error = perfect_target - Q_s_a
+        
     loss = F.mse_loss(Q_s_a, target)
+    
+    td_diff = torch.abs(TD_error - perfect_TD_error).squeeze()
+    td_diff_list = td_diff.tolist()
+    td_errors_diff += td_diff_list
+    
+    sign_TD_error = torch.sign(TD_error)
+    sign_perfect_TD_error = torch.sign(perfect_TD_error)
+    product = sign_TD_error * sign_perfect_TD_error
+    count = torch.sum(product == -1)
+    td_errors_direction_diff += count.item()
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
     
-    return env_loss
+    return errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff
 
 ################################################################################################################
 # dqn
@@ -395,7 +500,14 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
 def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE, decay=DECAY):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
-    f.write("Score\t#Frames\n")
+    f.write("Score\t#Frames\t")
+    for i in range(rollout_constant):
+        f.write(f"ErrorPerStep{i+1}\t")
+    f.write(f"OverallError\t")
+    for i in range(rollout_constant):
+        f.write(f"WeightsPerStep{i+1}\t")
+    f.write("EffectivePlanningHorizon\tTDErrorAbsDiff\tTDErrorDiffDir")
+    f.write("\n")
     f.close()
     
     # Set up the seed
@@ -486,6 +598,13 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
         
+        errors_per_step = [[] for _ in range(rollout_constant)]  # Nested list to store errors at each step for each rollout
+        overall_errors = []
+        weights_per_step = [[] for _ in range(rollout_constant)]  # Nested list to store weights at each step for each rollout
+        td_errors_diff = []  # List to store absolute difference between TD errors for each planning step
+        td_errors_direction_diff = 0  # Counter for number of times TD errors had different signs
+        effective_planning_horizons = []  # List to store effective planning horizons for each planning rollout
+        
         while (not is_terminated):
             # Generate data  
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
@@ -512,10 +631,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    env_loss = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay)
+                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
+                                                                                                                                      errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
+                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff)
                 else:
                     policy_net_update_counter += 1
-                    env_loss = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay)
+                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
+                                                                                                                                      errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
+                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -534,6 +657,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Increment the episodes
         e += 1
+        
+        # calculate the quantities for each episode
+        error_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in errors_per_step]
+        overall_error_per_episode = sum(overall_errors) / len(overall_errors)
+        # print(weights_per_step)
+        weights_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in weights_per_step]
+        effective_planning_horizon_per_episode = sum(effective_planning_horizons) / len(effective_planning_horizons)
+        td_errors_diff_per_episode = sum(td_errors_diff) / len(td_errors_diff)
 
         # Save the return for each episode
         data_return.append(G)
@@ -543,16 +674,23 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 1 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Loss MVE: " + str(env_loss.item())
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item())
                         )                    
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + " | Env Model Loss MVE: " + str(env_loss.item()) + "\n"
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n"
                         )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t-t_prev) + "\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\t")
+            for i in range(rollout_constant):
+                f.write(str(error_per_step_per_episode[i]) + "\t")
+            f.write(str(overall_error_per_episode) + "\t")
+            for i in range(rollout_constant):
+                f.write(str(weights_per_step_per_episode[i]) + "\t")
+            f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t")
+            f.write("\n")
             f.close()
         
         t_prev = t

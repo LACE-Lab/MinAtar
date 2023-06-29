@@ -1,15 +1,14 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1
+-c 1 3 4 5 6 7 8 9 10 11 12 13 14 15
 -t 2
 -i
 -s 100
 -e
--l "One Step State Oracle Selective MVE (dim=128)"
--n /research/erin/zoshao/results/2023_06_22_acrobot_one_state_dim.128.png
--g "Model-free" "H=2" "H=3" "H=4" "Perfect Model"
+-l "Perfect Model MVE (H=3)"
+-n /research/erin/zoshao/results/2023_06_28_perfect_model_h.3.png
+-g "Model-free" "dim=4" "dim=128" "Perfect Model"
 -a /research/erin/zoshao/results/2023_06_13_acrobot_model_free_a.0.01.*.results
--a /research/erin/zoshao/results/2023_06_15_acrobot_one_state_oracle_h2.dim.128.t.0.5*.results
--a /research/erin/zoshao/results/2023_06_14_acrobot_one_state_oracle_h3.dim.128.t.0.5*.results
--a /research/erin/zoshao/results/2023_06_15_acrobot_one_state_oracle_h4.dim.128.t.0.5*.results
--a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h4.dc.1.*.results
+-a /research/erin/zoshao/results/2023_06_26_acrobot_perfect_model_h3.dim.4.t.1.*.results
+-a /research/erin/zoshao/results/2023_06_26_acrobot_perfect_model_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h3.dc.1.*.results
