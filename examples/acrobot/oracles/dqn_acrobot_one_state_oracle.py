@@ -551,7 +551,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     f.write("EffectivePlanningHorizon\tTDErrorAbsDiff\tTDErrorDiffDir\t")
     for i in range(1, rollout_constant):
         f.write(f"CorrelationPerStep{i+1}\t")
-    f.write("OverallCorrelation\tFullTargetError")
+    f.write("OverallCorrelation")
     f.write("\n")
     f.close()
     
@@ -794,7 +794,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t")
             for i in range(rollout_constant-1):
                 f.write(str(correlations_per_step[i]) + "\t")
-            f.write(str(overall_correlation) + "\t" + str(flattened_full_target_errors_per_episode))
+            f.write(str(overall_correlation))
             f.write("\n")
             f.close()
         
