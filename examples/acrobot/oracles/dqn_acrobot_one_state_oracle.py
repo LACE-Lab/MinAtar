@@ -355,7 +355,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             for index, val in enumerate(error_list):
                 errors_per_step[index].append(val)
                 
-            overall_errors += error_list
+            overall_errors += error_list[1:]
             
             for index, val in enumerate(uncertainty_list):
                 uncertainty_measures[index % H].append(val)
@@ -396,6 +396,10 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             full_target_error = torch.abs(discounted_rewards - true_discounted_rewards).squeeze()
             full_target_error_list = full_target_error.tolist()
             for index, val in enumerate(full_target_error_list):
+                # if val > 1.0:
+                #     print(index, val, discounted_rewards, true_discounted_rewards)
+                #     print(reward_list, value_list)
+                #     print(full_reward_list, full_value_list)
                 full_target_errors[index % H].append(val)
             
             # Calculate weighted avg (target)
@@ -523,15 +527,25 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\t")
-    for i in range(rollout_constant):
-        f.write(f"Error Per Step{i+1}\t")
-    f.write(f"Overall Error\t")
-    for i in range(rollout_constant):
-        f.write(f"Weights Per Step{i+1}\t")
-    f.write("Effective Planning Horizon\tTD Error Abs Diff\t TD Error Diff Dir\t")
     for i in range(1, rollout_constant):
-        f.write(f"Correlation Per Step{i+1}\t")
-    f.write("Overall Correlation")
+        f.write(f"AvgErrorPerStep{i+1}\t")
+        f.write(f"MedianErrorPerStep{i+1}\t")
+        f.write(f"25thErrorPerStep{i+1}\t")
+        f.write(f"75thErrorPerStep{i+1}\t")
+        f.write(f"MaxErrorPerStep{i+1}\t")
+        f.write(f"MinErrorPerStep{i+1}\t")
+    f.write(f"OverallAvgError\t")
+    f.write(f"OverallMedianError\t")
+    f.write(f"Overall25thError\t")
+    f.write(f"Overall75thError\t")
+    f.write(f"OverallMaxError\t")
+    f.write(f"OverallMinError\t")
+    for i in range(rollout_constant):
+        f.write(f"WeightsPerStep{i+1}\t")
+    f.write("EffectivePlanningHorizon\tTDErrorAbsDiff\tTDErrorDiffDir\t")
+    for i in range(1, rollout_constant):
+        f.write(f"CorrelationPerStep{i+1}\t")
+    f.write("OverallCorrelation\tFullTargetError")
     f.write("\n")
     f.close()
     
@@ -688,7 +702,18 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         # calculate the quantities for each episode
         error_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in errors_per_step]
+        error_per_step_median_per_episode = [np.median(sublist) for sublist in errors_per_step]
+        error_per_step_25th_percentile_per_episode = [np.percentile(sublist, 25) for sublist in errors_per_step]
+        error_per_step_75th_percentile_per_episode = [np.percentile(sublist, 75) for sublist in errors_per_step]
+        error_per_step_max_per_episode = [np.max(sublist) for sublist in errors_per_step]
+        error_per_step_min_per_episode = [np.min(sublist) for sublist in errors_per_step]
+        
         overall_error_per_episode = sum(overall_errors) / len(overall_errors)
+        overall_error_median_per_episode = np.median(overall_errors)
+        overall_error_25th_percentile_per_episode = np.percentile(overall_errors, 25)
+        overall_error_75th_percentile_per_episode = np.percentile(overall_errors, 75)
+        overall_error_max_per_episode = np.max(overall_errors)
+        overall_error_min_per_episode = np.min(overall_errors)
         # print(weights_per_step)
         weights_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in weights_per_step]
         effective_planning_horizon_per_episode = sum(effective_planning_horizons) / len(effective_planning_horizons)
@@ -713,6 +738,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
         # Calculate the correlation coefficient and the p-value
         overall_correlation, p_value = pearsonr(flattened_full_target_errors, flattened_uncertainty_measures)
+        
+        flattened_full_target_errors_per_episode = sum(flattened_full_target_errors) / len(flattened_full_target_errors)
 
         # Save the return for each episode
         data_return.append(G)
@@ -732,15 +759,25 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             f.close()
             f = open(f"{output_file_name}.results", "a")
             f.write(str(G) + "\t" + str(t-t_prev) + "\t")
-            for i in range(rollout_constant):
+            for i in range(1, rollout_constant):
                 f.write(str(error_per_step_per_episode[i]) + "\t")
+                f.write(str(error_per_step_median_per_episode[i]) + "\t")
+                f.write(str(error_per_step_25th_percentile_per_episode[i]) + "\t")
+                f.write(str(error_per_step_75th_percentile_per_episode[i]) + "\t")
+                f.write(str(error_per_step_max_per_episode[i]) + "\t")
+                f.write(str(error_per_step_min_per_episode[i]) + "\t")
             f.write(str(overall_error_per_episode) + "\t")
+            f.write(str(overall_error_median_per_episode) + "\t")
+            f.write(str(overall_error_25th_percentile_per_episode) + "\t")
+            f.write(str(overall_error_75th_percentile_per_episode) + "\t")
+            f.write(str(overall_error_max_per_episode) + "\t")
+            f.write(str(overall_error_min_per_episode) + "\t")
             for i in range(rollout_constant):
                 f.write(str(weights_per_step_per_episode[i]) + "\t")
             f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t")
             for i in range(rollout_constant-1):
                 f.write(str(correlations_per_step[i]) + "\t")
-            f.write(str(overall_correlation))
+            f.write(str(overall_correlation) + "\t" + str(flattened_full_target_errors_per_episode))
             f.write("\n")
             f.close()
         

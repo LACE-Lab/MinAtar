@@ -297,6 +297,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             uncertainty = [0]
             full_next_state = next_state
             full_done = done
+            one_step_errors_sample = []
             
             for h in range(1, H):
                 if not done:
@@ -326,7 +327,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     env_model.load_state(next_state)
                     
                     one_step_error = torch.abs(real_next_state - next_state).sum().item()
-                    one_step_errors.append(one_step_error)
+                    one_step_errors_sample.append(one_step_error)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
@@ -370,7 +371,14 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             
             error_list = uncertainty.tolist()
             for index, val in enumerate(error_list):
+                # if val > 1.0:
+                #     print(index, val, discounted_rewards, true_discounted_rewards)
+                #     print(reward_list, value_list)
+                #     print(full_reward_list, full_value_list)
                 errors_per_step[index].append(val)
+            
+            one_step_errors_sample = extend_list(one_step_errors_sample, H-1, 0)
+            one_step_errors += one_step_errors_sample
                 
             overall_errors += error_list[1:]
             
