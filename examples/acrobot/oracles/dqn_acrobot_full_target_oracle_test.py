@@ -233,7 +233,7 @@ def softmax_with_temperature(x, temperature=1):
 def extend_list(lst, n, elem):
     return lst + [elem]*(n - len(lst))
     
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay, errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay, errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, one_step_errors):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
@@ -316,9 +316,17 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
                         done = True
                         reward = 0
-                     
+                    # One step state
+                    real_next_state, _, _, _, _ = env.step(action.item())
+                    real_next_state = torch.tensor(real_next_state)
+
+                    # Get back to model state
+                    env.set_state_from_observation(next_state)
                     next_state = torch.Tensor(next_state).to(device)
                     env_model.load_state(next_state)
+                    
+                    one_step_error = torch.abs(real_next_state - next_state).sum().item()
+                    one_step_errors.append(one_step_error)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
@@ -364,7 +372,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             for index, val in enumerate(error_list):
                 errors_per_step[index].append(val)
                 
-            overall_errors += error_list
+            overall_errors += error_list[1:]
             
             decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
             weights = weights * decays
@@ -478,7 +486,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
     loss.backward()
     optimizer.step()
     
-    return errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff
+    return errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, one_step_errors
 
 ################################################################################################################
 # dqn
@@ -501,12 +509,22 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
     f.write("Score\t#Frames\t")
-    for i in range(rollout_constant):
-        f.write(f"ErrorPerStep{i+1}\t")
-    f.write(f"OverallError\t")
+    for i in range(1, rollout_constant):
+        f.write(f"AvgErrorPerStep{i+1}\t")
+        f.write(f"MedianErrorPerStep{i+1}\t")
+        f.write(f"25thErrorPerStep{i+1}\t")
+        f.write(f"75thErrorPerStep{i+1}\t")
+        f.write(f"MaxErrorPerStep{i+1}\t")
+        f.write(f"MinErrorPerStep{i+1}\t")
+    f.write(f"OverallAvgError\t")
+    f.write(f"OverallMedianError\t")
+    f.write(f"Overall25thError\t")
+    f.write(f"Overall75thError\t")
+    f.write(f"OverallMaxError\t")
+    f.write(f"OverallMinError\t")
     for i in range(rollout_constant):
         f.write(f"WeightsPerStep{i+1}\t")
-    f.write("EffectivePlanningHorizon\tTDErrorAbsDiff\tTDErrorDiffDir")
+    f.write("EffectivePlanningHorizon\tTDErrorAbsDiff\tTDErrorDiffDir\tOneStepError")
     f.write("\n")
     f.close()
     
@@ -604,6 +622,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         td_errors_diff = []  # List to store absolute difference between TD errors for each planning step
         td_errors_direction_diff = 0  # Counter for number of times TD errors had different signs
         effective_planning_horizons = []  # List to store effective planning horizons for each planning rollout
+        one_step_errors = []
         
         while (not is_terminated):
             # Generate data  
@@ -631,14 +650,14 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
             if t % TRAINING_FREQ == 0 and sample_policy is not None:
                 if target_off:
-                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
+                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, one_step_errors = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
                                                                                                                                       errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
-                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff)
+                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff, one_step_errors=one_step_errors)
                 else:
                     policy_net_update_counter += 1
-                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
+                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, one_step_errors = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
                                                                                                                                       errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
-                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff)
+                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff, one_step_errors=one_step_errors)
                     
             # Train every n number of frames defined by TRAINING_FREQ
             if t % TRAINING_FREQ == 0 and sample_env is not None:
@@ -660,11 +679,26 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         # calculate the quantities for each episode
         error_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in errors_per_step]
+        error_per_step_median_per_episode = [np.median(sublist) for sublist in errors_per_step]
+        error_per_step_25th_percentile_per_episode = [np.percentile(sublist, 25) for sublist in errors_per_step]
+        error_per_step_75th_percentile_per_episode = [np.percentile(sublist, 75) for sublist in errors_per_step]
+        error_per_step_max_per_episode = [np.max(sublist) for sublist in errors_per_step]
+        error_per_step_min_per_episode = [np.min(sublist) for sublist in errors_per_step]
+        
         overall_error_per_episode = sum(overall_errors) / len(overall_errors)
+        overall_error_median_per_episode = np.median(overall_errors)
+        overall_error_25th_percentile_per_episode = np.percentile(overall_errors, 25)
+        overall_error_75th_percentile_per_episode = np.percentile(overall_errors, 75)
+        overall_error_max_per_episode = np.max(overall_errors)
+        overall_error_min_per_episode = np.min(overall_errors)
+        
         # print(weights_per_step)
         weights_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in weights_per_step]
         effective_planning_horizon_per_episode = sum(effective_planning_horizons) / len(effective_planning_horizons)
         td_errors_diff_per_episode = sum(td_errors_diff) / len(td_errors_diff)
+        one_step_errors_per_episode = sum(one_step_errors) / len(one_step_errors)
+        
+        assert len(one_step_errors) == len(overall_errors)
 
         # Save the return for each episode
         data_return.append(G)
@@ -684,12 +718,22 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             f.close()
             f = open(f"{output_file_name}.results", "a")
             f.write(str(G) + "\t" + str(t-t_prev) + "\t")
-            for i in range(rollout_constant):
+            for i in range(1, rollout_constant):
                 f.write(str(error_per_step_per_episode[i]) + "\t")
+                f.write(str(error_per_step_median_per_episode[i]) + "\t")
+                f.write(str(error_per_step_25th_percentile_per_episode[i]) + "\t")
+                f.write(str(error_per_step_75th_percentile_per_episode[i]) + "\t")
+                f.write(str(error_per_step_max_per_episode[i]) + "\t")
+                f.write(str(error_per_step_min_per_episode[i]) + "\t")
             f.write(str(overall_error_per_episode) + "\t")
+            f.write(str(overall_error_median_per_episode) + "\t")
+            f.write(str(overall_error_25th_percentile_per_episode) + "\t")
+            f.write(str(overall_error_75th_percentile_per_episode) + "\t")
+            f.write(str(overall_error_max_per_episode) + "\t")
+            f.write(str(overall_error_min_per_episode) + "\t")
             for i in range(rollout_constant):
                 f.write(str(weights_per_step_per_episode[i]) + "\t")
-            f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t")
+            f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t" + str(one_step_errors_per_episode))
             f.write("\n")
             f.close()
         

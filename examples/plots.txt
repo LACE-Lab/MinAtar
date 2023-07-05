@@ -1,14 +1,14 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1 3 4 5 6 7 8 9 10 11 12 13 14 15
+-c 1 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
 -t 2
 -i
 -s 100
 -e
--l "Perfect Model MVE (H=3)"
--n /research/erin/zoshao/results/2023_06_28_perfect_model_h.3.png
--g "Model-free" "dim=4" "dim=128" "Perfect Model"
+-l "Perfect Model MVE (H=4, dim=128)"
+-n /research/erin/zoshao/results/2023_07_03_comparison_dim.128.h.4.png
+-g "Model-free" "Perfect" "One-Step" "Full Target"
 -a /research/erin/zoshao/results/2023_06_13_acrobot_model_free_a.0.01.*.results
--a /research/erin/zoshao/results/2023_06_26_acrobot_perfect_model_h3.dim.4.t.1.*.results
--a /research/erin/zoshao/results/2023_06_26_acrobot_perfect_model_h3.dim.128.t.0.5.*.results
--a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h3.dc.1.*.results
+-a /research/erin/zoshao/results/2023_06_26_acrobot_perfect_model_h4.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_26_acrobot_one_state_oracle_h4.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_06_29_acrobot_full_target_oracle_h4.dim.128.t.1.*.results
