@@ -1,16 +1,20 @@
 cd object-filtering;
 python3 ../learningcurve/learningcurve.py
--c 1 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32
+-c 1
 -t 2
 -i
 -s 30
 -e
--l "One-Step State Oracle MVE (H=4, dim=128)"
--n /research/erin/zoshao/results/2023_07_06_multiple_comparison_dim.128.h.4.png
--g "Model-free" "One-State 0.5" "One-State 1" "Full Target 0.1" "Full Target 0.5" "Perfect"
+-l "One-Step State Oracle MVE (H=3, dim=128)"
+-n /research/erin/zoshao/results/2023_07_07_multiple_comparison_pure_performance_dim.128.h.3.png
+-g "Model-free" "One-Step 0.5" "One-Step 1" "Full Target 0.1" "Full Target 0.5" "One-Step Fixed 0.5" "One-Step Fixed 1" "Perfect LearnedW 0.5" "Perfect LearnedW 1" "Perfect"
 -a /research/erin/zoshao/results/2023_06_13_acrobot_model_free_a.0.01.*.results
--a /research/erin/zoshao/results/2023_07_05_acrobot_one_state_oracle_h4.dim.128.t.0.5.*.results
--a /research/erin/zoshao/results/2023_07_05_acrobot_one_state_oracle_h4.dim.128.t.1.*.results
--a /research/erin/zoshao/results/2023_07_05_acrobot_full_target_oracle_h4.dim.128.t.0.1.*.results
--a /research/erin/zoshao/results/2023_07_05_acrobot_full_target_oracle_h4.dim.128.t.0.5.*.results
--a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h4.dc.1.*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_one_state_oracle_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_one_state_oracle_h3.dim.128.t.1.*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_full_target_oracle_h3.dim.128.t.0.1.*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_full_target_oracle_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_07_06_acrobot_one_state_oracle_fixed_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_07_06_acrobot_one_state_oracle_fixed_h3.dim.128.t.1.*.results
+-a /research/erin/zoshao/results/2023_07_06_acrobot_perfect_model_learned_weights_h3.dim.128.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_07_06_acrobot_perfect_model_learned_weights_h3.dim.128.t.1.*.results
+-a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h3.dc.1_*.results
