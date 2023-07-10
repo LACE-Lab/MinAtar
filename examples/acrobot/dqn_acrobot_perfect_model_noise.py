@@ -20,7 +20,6 @@ import numpy as np
 
 from collections import namedtuple
 from customAcrobot import CustomAcrobot
-from scipy.stats import pearsonr
 
 ################################################################################################################
 # Constants
@@ -42,8 +41,6 @@ GAMMA = 0.99
 EPSILON = 1
 H = 1 # rollout constant
 SEED = 42
-ENV_HIDDEN_SIZE = 128
-TEMPERATURE = 1
 DECAY = 1
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,40 +76,13 @@ class QNetwork(pl.LightningModule, nn.Module):
     # As per implementation instructions according to pytorch, the forward function should be overwritten by all
     # subclasses
     def forward(self, x):
+        # print(x)
+
         # Rectified output from the final hidden layer
         x = self.fc_hidden(x)
 
         # Returns the output from the fully-connected linear layer
         return self.output(x)
-
-# Define the approximate model of the environment
-class EnvModel(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=ENV_HIDDEN_SIZE):
-        super(EnvModel, self).__init__()
-        self.state_size = state_size
-        self.action_size = action_size
-        self.state = None
-        
-        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, state_size)
-        
-    def load_state(self, state):
-        self.state = state.clone().detach()
-
-    def save_state(self):
-        return self.state.clone().detach()
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        return x
-    
-    def step(self, action):
-        one_hot_action = torch.eye(self.action_size)[action.squeeze().long()]
-        state_action_pair = torch.cat((self.state, one_hot_action), dim=-1)
-        predicted_next_state = self.forward(state_action_pair)
-        return predicted_next_state.detach().numpy()
 
 ###########################################################################################################
 # class replay_buffer
@@ -142,6 +112,7 @@ class replay_buffer:
     def sample(self, batch_size):
         return random.sample(self.buffer, batch_size)
 
+
 ################################################################################################################
 # train
 #
@@ -155,45 +126,59 @@ class replay_buffer:
 #   optimizer: centered RMSProp
 #
 ################################################################################################################
-
-def train_env_model(sample, env_model, optimizer, device, scheduler=None, clip_grad=None, weight_decay=0):
+def train(sample, policy_net, target_net, optimizer):
+    # Batch is a list of namedtuple's, the following operation returns samples grouped by keys
     batch_samples = transition(*zip(*sample))
 
-    states = torch.vstack((batch_samples.state)).to(device)
-    next_states = torch.vstack((batch_samples.next_state)).to(device)
-
+    # states, next_states are of tensor (BATCH_SIZE, in_channel, 10, 10) - inline with pytorch NCHW format
+    # actions, rewards, is_terminal are of tensor (BATCH_SIZE, 1)
+    states = torch.vstack((batch_samples.state))
+    next_states = torch.vstack((batch_samples.next_state))
+    
     actions = torch.cat(batch_samples.action, 0)
-    actions = actions.reshape(BATCH_SIZE, 1).type(torch.int64)
+    actions = actions.reshape(BATCH_SIZE, 1)
+    
+    rewards = torch.tensor(batch_samples.reward).to(device)
+    rewards = rewards.reshape(BATCH_SIZE, 1)
+    is_terminal = torch.tensor(batch_samples.is_terminal).to(device)
+    is_terminal = is_terminal.reshape(BATCH_SIZE, 1)
+    
+    # print(states, next_states, actions, rewards, is_terminal)
 
-    # One-hot encode the actions
-    one_hot_actions = torch.eye(env_model.action_size)[actions.squeeze().long()]
+    # Obtain a batch of Q(S_t, A_t) and compute the forward pass.
+    # Note: policy_network output Q-values for all the actions of a state, but all we need is the A_t taken at time t
+    # in state S_t.  Thus we gather along the columns and get the Q-values corresponds to S_t, A_t.
+    # Q_s_a is of size (BATCH_SIZE, 1).
+    actions = actions.type(torch.int64)
+    Q_s_a = policy_net(states).gather(1, actions)
 
-    # Concatenate states and one-hot encoded actions
-    state_action_pairs = torch.cat((states, one_hot_actions), dim=-1)
+    # Obtain max_{a} Q(S_{t+1}, a) of any non-terminal state S_{t+1}.  If S_{t+1} is terminal, Q(S_{t+1}, A_{t+1}) = 0.
+    # Note: each row of the network's output corresponds to the actions of S_{t+1}.  max(1)[0] gives the max action
+    # values in each row (since this a batch).  The detach() detaches the target net's tensor from computation graph so
+    # to prevent the computation of its gradient automatically.  Q_s_prime_a_prime is of size (BATCH_SIZE, 1).
 
-    # Forward pass to get predicted next states, rewards, and done
-    predicted_next_states = env_model(state_action_pairs)
+    # Get the indices of next_states that are not terminal
+    none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
+    # Select the indices of each row
+    none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
 
-    # Compute the loss
-    loss = F.mse_loss(predicted_next_states, next_states)
+    Q_s_prime_a_prime = torch.zeros(len(sample), 1, device=device)
+    
+    if len(none_terminal_next_states) != 0:
+        Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
 
-    # L2 regularization
-    l2_reg = torch.tensor(0., device=device)
-    for param in env_model.parameters():
-        l2_reg += torch.norm(param, p=2)
-    loss += weight_decay * l2_reg
+    # Compute the target
+    target = rewards + GAMMA * Q_s_prime_a_prime
 
-    # Zero gradients, backprop, and update the weights of env_model
+    # Huber loss
+    loss = F.mse_loss(target,Q_s_a)
+    # loss = f.smooth_l1_loss(target, Q_s_a)
+    # print(loss)
+
+    # Zero gradients, backprop, update the weights of policy_net
     optimizer.zero_grad()
     loss.backward()
-
-    # Gradient clipping
-    if clip_grad is not None:
-        torch.nn.utils.clip_grad_norm_(env_model.parameters(), clip_grad)
-
     optimizer.step()
-
-    return loss
     
     
 def choose_action(t, replay_start_size, state, policy_net, n_actions):
@@ -227,16 +212,10 @@ def softmax_with_temperature(x, temperature=1):
     e_x = np.exp((np.array(x) - np.max(x)) / temperature)
     return e_x / e_x.sum()
 
-def extend_list(lst, n, elem):
-    return lst + [elem]*(n - len(lst))
-    
-def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, temp, decay, errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, full_target_errors, uncertainty_measures):
+def trainWithRollout(sample, policy_net, target_net, optimizer, H, decay=DECAY):
     # unzip the batch samples and turn components into tensors
     env = CustomAcrobot()
     env.reset()
-    
-    full_env = CustomAcrobot()
-    full_env.reset()
 
     batch_samples = transition(*zip(*sample))
 
@@ -261,165 +240,7 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
         target = rewards + GAMMA * Q_s_prime_a_prime
    
     else:
-        # Now, we are in the H>1 scenario, where we perform rollouts
         target = torch.empty((0))
-        perfect_target = torch.empty((0))
-        for i in range(BATCH_SIZE):
-            
-            # Using Oracle
-            initial_state = torch.tensor(batch_samples.state[i], dtype=torch.float32).to(device)
-            env.set_state_from_observation(initial_state)
-            full_env.set_state_from_observation(initial_state)
-            env_model.load_state(initial_state)
-            
-            state = states[i]
-            next_state = next_states[i]
-            done = is_terminal[i]
-            
-            reward_list = torch.zeros(H).to(device)
-            value_list = torch.zeros(H).to(device)
-            reward_list[0] = rewards[i]
-            value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-            
-            full_reward_list = torch.zeros(H).to(device)
-            full_value_list = torch.zeros(H).to(device)
-            full_reward_list[0] = rewards[i]
-            full_value_list[0] = 0 if done else target_net(next_state).max(0)[0].item()
-            
-            next_state = torch.tensor(batch_samples.next_state[i], dtype=torch.float32).to(device)
-            env_model.load_state(next_state)
-            env.set_state_from_observation(batch_samples.next_state[i].numpy())
-            full_env.set_state_from_observation(batch_samples.next_state[i].numpy())
-
-            uncertainty = [0]
-            full_next_state = next_state
-            full_done = done
-            
-            for h in range(1, H):
-                if not done:
-                    action = choose_greedy_action(next_state, policy_net)
-                    full_action = choose_greedy_action(full_next_state, policy_net)
-                    next_state = env_model.step(action)
-
-                    cosTheta1 = next_state[0]
-                    sinTheta1 = next_state[1]
-                    cosTheta2 = next_state[2]
-                    sinTheta2 = next_state[3]
-                    dTheta1 = next_state[4]
-                    dTheta2 = next_state[5]
-
-                    done = False
-                    reward = -1
-                    if -cosTheta1 - (cosTheta2 * cosTheta1 - sinTheta2 * sinTheta1) > 1.0:
-                        done = True
-                        reward = 0
-                     
-                    # One step state
-                    real_next_state, _, _, _, _ = env.step(action.item())
-                    real_next_state = torch.tensor(real_next_state)
-                    noise = (torch.randn(1) * 50).to(device)
-                    real_next_state = torch.cat((real_next_state, noise), 0)
-
-                    # Get back to model state
-                    env.set_state_from_observation(next_state)
-                    next_state = torch.Tensor(next_state).to(device)
-                    
-                    env_model.load_state(next_state)
-
-                    value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
-                    reward_list[h] = reward
-                    
-                    # One step state error
-                    diff = torch.abs(real_next_state - next_state).sum().item()
-                    uncertainty.append(diff)
-                    
-                    # full env (not using the same action as rollout)
-                    if not full_done:
-                        full_next_state, full_reward, full_terminated, full_truncated, _ = full_env.step(full_action.item())
-                        full_done = full_terminated or full_truncated
-                        full_next_state = torch.tensor(full_next_state)
-                        noise = (torch.randn(1) * 50).to(device)
-                        full_next_state = torch.cat((full_next_state, noise), 0)
-                    
-                    full_value_list[h] = 0 if full_done else target_net(full_next_state).max(0)[0].item()
-                    full_reward_list[h] = full_reward
-
-                else:
-                    break
-            
-            # Uncertainty is one-step error
-            uncertainty = extend_list(uncertainty, n=H, elem=0)
-            error_list = uncertainty
-            uncertainty = torch.tensor(list(np.cumsum(uncertainty)))
-            uncertainty_list = uncertainty.tolist()
-
-            for index, val in enumerate(error_list):
-                errors_per_step[index].append(val)
-                
-            overall_errors += error_list
-            
-            for index, val in enumerate(uncertainty_list):
-                uncertainty_measures[index % H].append(val)
-            
-            negative_uncertainty_sample = [-1 * x for x in uncertainty]
-            weights = softmax_with_temperature(negative_uncertainty_sample, temp)
-            weights = torch.Tensor(weights).to(device).unsqueeze(0)
-            
-            decays = torch.tensor([decay**i for i in range(len(uncertainty))])   
-            weights = weights * decays
-            
-            weights_list = weights.squeeze().tolist()
-            for index, val in enumerate(weights_list):
-                weights_per_step[index % H].append(val)
-            
-            effective_planning_horizon = sum(i * weight for i, weight in enumerate(weights_list, 1))
-            effective_planning_horizons.append(effective_planning_horizon)
-            
-            indices = torch.arange(0, len(reward_list)).unsqueeze(0).float()
-            indices_val = torch.arange(1, len(reward_list) + 1).unsqueeze(0).float()
-            
-            gamma_powers = GAMMA ** indices
-            gamma_powers_val = GAMMA ** indices_val
-            
-            running_reward = (gamma_powers * reward_list).cumsum(dim=1)
-            discounted_rewards = running_reward + gamma_powers_val * value_list
-            
-            # for full env (oracles)
-            true_indices = torch.arange(0, len(full_reward_list)).unsqueeze(0).float()
-            true_indices_val = torch.arange(1, len(full_reward_list) + 1).unsqueeze(0).float()
-            
-            true_gamma_powers = GAMMA ** true_indices
-            true_gamma_powers_val = GAMMA ** true_indices_val
-            
-            true_running_reward = (true_gamma_powers * full_reward_list).cumsum(dim=1)
-            true_discounted_rewards = true_running_reward + true_gamma_powers_val * full_value_list
-            
-            full_target_error = torch.abs(discounted_rewards - true_discounted_rewards).squeeze()
-            full_target_error_list = full_target_error.tolist()
-            for index, val in enumerate(full_target_error_list):
-                full_target_errors[index % H].append(val)
-            
-            # Calculate weighted avg (target)
-            weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
-            avg = torch.Tensor([weighted_avg.item()]).detach()
-            target = torch.cat((target, avg)).detach()
-
-        target.requires_grad = True
-        target = target.reshape(BATCH_SIZE, 1)
-        TD_error = target - Q_s_a
-    
-    # Perfect Model    
-    if H == 1:
-        # If H=1, we are not performing rollouts, so we just use the standard DQN target computation
-        none_terminal_next_state_index = torch.tensor([i for i, is_term in enumerate(is_terminal) if is_term == 0], dtype=torch.int64, device=device)
-        none_terminal_next_states = next_states.index_select(0, none_terminal_next_state_index)
-        Q_s_prime_a_prime = torch.zeros(BATCH_SIZE, 1, device=device)
-        if len(none_terminal_next_states) != 0:
-            Q_s_prime_a_prime[none_terminal_next_state_index] = target_net(none_terminal_next_states).detach().max(1)[0].unsqueeze(1)
-        perfect_target = rewards + GAMMA * Q_s_prime_a_prime
-   
-    else:
-        perfect_target = torch.empty((0))
 
         for i in range(BATCH_SIZE):
 
@@ -479,63 +300,29 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             weighted_avg = (weights * discounted_rewards).sum() / weights.sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
 
-            perfect_target = torch.cat((perfect_target, avg)).detach()
+            target = torch.cat((target, avg)).detach()
 
-        perfect_target.requires_grad = True
-        perfect_target = perfect_target.reshape(BATCH_SIZE, 1)
-        
-        perfect_TD_error = perfect_target - Q_s_a
-        
-    
-    loss = F.mse_loss(Q_s_a, perfect_target)
-    
-    td_diff = torch.abs(TD_error - perfect_TD_error).squeeze()
-    td_diff_list = td_diff.tolist()
-    td_errors_diff += td_diff_list
-    
-    sign_TD_error = torch.sign(TD_error)
-    sign_perfect_TD_error = torch.sign(perfect_TD_error)
-    product = sign_TD_error * sign_perfect_TD_error
-    count = torch.sum(product == -1)
-    td_errors_direction_diff += count.item()
+        target.requires_grad = True
+        target = target.reshape(BATCH_SIZE, 1)
+
+    loss = F.mse_loss(Q_s_a, target)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
     
-    return errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, uncertainty_measures, full_target_errors
+    return loss
 
 ################################################################################################################
 # dqn
 #
 # DQN algorithm with the option to disable replay and/or target network, and the function saves the training data.
 #
-# Inputs:
-#   env: environment of the game
-#   replay_off: disable the replay buffer and train on each state transition
-#   target_off: disable target network
-#   output_file_name: directory and file name prefix to output data and network weights, file saved as 
-#       <output_file_name>_data_and_weights
-#   store_intermediate_result: a boolean, if set to true will store checkpoint data every 1000 episodes
-#       to a file named <output_file_name>_checkpoint
-#   load_path: file path for a checkpoint to load, and continue training from
-#   step_size: step-size for RMSProp optimizer
-#
 #################################################################################################################
-def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size_policy=STEP_SIZE, step_size_env=STEP_SIZE, rollout_constant=H, seed=SEED, env_hidden_size=ENV_HIDDEN_SIZE, temp=TEMPERATURE, decay=DECAY):
+def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result=False, load_path=None, step_size=STEP_SIZE, rollout_constant=H, seed=SEED, decay=DECAY):
     # Set up the results file
     f = open(f"{output_file_name}.results", "a")
-    f.write("Score\t#Frames\t")
-    for i in range(rollout_constant):
-        f.write(f"Error Per Step{i+1}\t")
-    f.write(f"Overall Error\t")
-    for i in range(rollout_constant):
-        f.write(f"Weights Per Step{i+1}\t")
-    f.write("Effective Planning Horizon\tTD Error Abs Diff\t TD Error Diff Dir\t")
-    for i in range(1, rollout_constant):
-        f.write(f"Correlation Per Step{i+1}\t")
-    f.write("Overall Correlation")
-    f.write("\n")
+    f.write("Score\t#Frames\n")
     f.close()
     
     # Set up the seed
@@ -555,8 +342,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
 
     # Instantiate networks, optimizer, loss and buffer
     policy_net = QNetwork(in_channels, num_actions).to(device)
-    env_model = EnvModel(in_channels, num_actions, env_hidden_size).to(device)
-    
     replay_start_size = 0
     if not target_off:
         target_net = QNetwork(in_channels, num_actions).to(device)
@@ -566,9 +351,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         r_buffer = replay_buffer(REPLAY_BUFFER_SIZE)
         replay_start_size = REPLAY_START_SIZE
 
-    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size_policy, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
-    env_model_optimizer = optim.Adam(env_model.parameters(), lr=step_size_env, weight_decay=WEIGHT_DECAY)
-    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size_env, gamma=GAMMA)
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=step_size, alpha=SQUARED_GRAD_MOMENTUM, centered=True, eps=MIN_SQUARED_GRAD)
 
     # Set initial values
     e_init = 0
@@ -610,50 +393,34 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     # Train for a number of frames
     t = t_init
     e = e_init
-    env_model_loss = torch.tensor(1)
     policy_net_update_counter = policy_net_update_counter_init
     t_start = time.time()
     t_prev = 0
     
     while t <= NUM_FRAMES:
-    # for t in tqdm(range(NUM_FRAMES)):
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
-        env_loss = torch.tensor([0])
 
         # Initialize the environment and start state
-        
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
         is_terminated = False
         noise = (torch.randn(1) * 50).to(device)
         s_cont = torch.cat((s_cont, noise), 0)
         
-        errors_per_step = [[] for _ in range(rollout_constant)]  # Nested list to store errors at each step for each rollout
-        overall_errors = []
-        weights_per_step = [[] for _ in range(rollout_constant)]  # Nested list to store weights at each step for each rollout
-        td_errors_diff = []  # List to store absolute difference between TD errors for each planning step
-        td_errors_direction_diff = 0  # Counter for number of times TD errors had different signs
-        effective_planning_horizons = []  # List to store effective planning horizons for each planning rollout
-        correlations_per_step = []  # List to store correlations between uncertainty and target error at each rollout step
-        full_target_errors = [[] for _ in range(rollout_constant)]
-        uncertainty_measures = [[] for _ in range(rollout_constant)]
-        
         while (not is_terminated):
-            # Generate data  
+            
+            # Generate data
             action = choose_action(t, replay_start_size, s_cont, policy_net, num_actions)
-
             s_cont_prime, reward, terminated, truncated, _ = env.step(action.item())
             is_terminated = terminated or truncated
-            
+
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
             noise = (torch.randn(1) * 50).to(device)
             s_cont_prime = torch.cat((s_cont_prime, noise), 0)
 
-            sample_policy = None
-            sample_env = None
+            sample = None
             if replay_off:
-                sample_policy = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
-                sample_env = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
+                sample = [transition(s_cont, s_cont_prime, action, reward, is_terminated)]
             else:
                 # Write the current frame to replay buffer
                 r_buffer.add(s_cont, s_cont_prime, action, reward, is_terminated)
@@ -661,65 +428,32 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
                 # Start learning when there's enough data and when we can sample a batch of size BATCH_SIZE
                 if t > REPLAY_START_SIZE and len(r_buffer.buffer) >= BATCH_SIZE:
                     # Sample a batch
-                    sample_policy = r_buffer.sample(BATCH_SIZE)
+                    sample = r_buffer.sample(BATCH_SIZE)
                     sample_env = r_buffer.sample(BATCH_SIZE)
 
-            if t % TRAINING_FREQ == 0 and sample_policy is not None:
+            # Train every n number of frames defined by TRAINING_FREQ
+            if t % TRAINING_FREQ == 0 and sample is not None:
                 if target_off:
-                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, full_target_errors, uncertainty_measures = trainWithRollout(sample_policy, policy_net, policy_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
-                                                                                                                                      errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
-                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff, full_target_errors=full_target_errors, uncertainty_measures=uncertainty_measures)
+                    trainWithRollout(sample, policy_net, policy_net, optimizer, rollout_constant, decay)
+                    # train(sample, policy_net, policy_net, optimizer)
                 else:
                     policy_net_update_counter += 1
-                    errors_per_step, overall_errors, weights_per_step, effective_planning_horizons, td_errors_diff, td_errors_direction_diff, full_target_errors, uncertainty_measures = trainWithRollout(sample_policy, policy_net, target_net, optimizer, rollout_constant, env_model, temp=temp, decay=decay, 
-                                                                                                                                      errors_per_step=errors_per_step, overall_errors=overall_errors, weights_per_step=weights_per_step, effective_planning_horizons=effective_planning_horizons, 
-                                                                                                                                      td_errors_diff=td_errors_diff, td_errors_direction_diff=td_errors_direction_diff, full_target_errors=full_target_errors, uncertainty_measures=uncertainty_measures)
-                    
-            # Train every n number of frames defined by TRAINING_FREQ
-            if t % TRAINING_FREQ == 0 and sample_env is not None:
-                env_model_loss = train_env_model(sample_env, env_model, env_model_optimizer, device, scheduler=None, clip_grad=0.5, weight_decay=WEIGHT_DECAY)
-                    
+                    trainWithRollout(sample, policy_net, target_net, optimizer, rollout_constant, decay)
+                    # train(sample, policy_net, policy_net, optimizer)
+
             # Update the target network only after some number of policy network updates
             if not target_off and policy_net_update_counter > 0 and policy_net_update_counter % TARGET_NETWORK_UPDATE_FREQ == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
-            G += reward
-            
             t += 1
+                     
+            G += reward
 
             # Continue the process
             s_cont = s_cont_prime
 
         # Increment the episodes
         e += 1
-        
-        # calculate the quantities for each episode
-        error_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in errors_per_step]
-        overall_error_per_episode = sum(overall_errors) / len(overall_errors)
-        # print(weights_per_step)
-        weights_per_step_per_episode = [sum(sublist) / len(sublist) for sublist in weights_per_step]
-        effective_planning_horizon_per_episode = sum(effective_planning_horizons) / len(effective_planning_horizons)
-        td_errors_diff_per_episode = sum(td_errors_diff) / len(td_errors_diff)
-        
-        # assuming full_target_errors and uncertainty_measures are both lists of lists
-        assert len(full_target_errors) == len(uncertainty_measures)
-
-        full_target_errors = full_target_errors[1:]
-        uncertainty_measures = uncertainty_measures[1:]
-        for i in range(len(full_target_errors)):
-            sublist_full_target_errors = full_target_errors[i]
-            sublist_uncertainty_measures = uncertainty_measures[i]
-
-            # calculate the Pearson correlation coefficient and the p-value
-            correlation, p_value = pearsonr(sublist_full_target_errors, sublist_uncertainty_measures)
-            correlations_per_step.append(correlation)
-        
-        # Flatten the nested lists into single lists
-        flattened_full_target_errors = [item for sublist in full_target_errors for item in sublist]
-        flattened_uncertainty_measures = [item for sublist in uncertainty_measures for item in sublist]
-
-        # Calculate the correlation coefficient and the p-value
-        overall_correlation, p_value = pearsonr(flattened_full_target_errors, flattened_uncertainty_measures)
 
         # Save the return for each episode
         data_return.append(G)
@@ -729,28 +463,16 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         avg_return = 0.99 * avg_return + 0.01 * G
         if e % 1 == 0:
             logging.info("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item())
-                        )                    
+                         str(numpy.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) )
 
             f = open(f"{output_file_name}.txt", "a")
             f.write("Episode " + str(e) + " | Return: " + str(G) + " | Avg return: " +
-                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + " | Env Model Loss: " + str(env_model_loss.item()) + "\n"
-                        )
+                         str(np.around(avg_return, 2)) + " | Frame: " + str(t)+" | Time per frame: " +str((time.time()-t_start)/t) + "\n" )
             f.close()
             f = open(f"{output_file_name}.results", "a")
-            f.write(str(G) + "\t" + str(t-t_prev) + "\t")
-            for i in range(rollout_constant):
-                f.write(str(error_per_step_per_episode[i]) + "\t")
-            f.write(str(overall_error_per_episode) + "\t")
-            for i in range(rollout_constant):
-                f.write(str(weights_per_step_per_episode[i]) + "\t")
-            f.write(str(effective_planning_horizon_per_episode) + "\t" + str(td_errors_diff_per_episode) + "\t" + str(td_errors_direction_diff) + "\t")
-            for i in range(rollout_constant-1):
-                f.write(str(correlations_per_step[i]) + "\t")
-            f.write(str(overall_correlation))
-            f.write("\n")
+            f.write(str(G) + "\t" + str(t-t_prev) + "\n")
             f.close()
-        
+            
         t_prev = t
         
         # Save model data and other intermediate data if the corresponding flag is true
@@ -785,13 +507,10 @@ def main():
     parser.add_argument("--output", "-o", type=str)
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--loadfile", "-l", type=str)
-    parser.add_argument("--alpha1", "-a1", type=float, default=STEP_SIZE)
-    parser.add_argument("--alpha2", "-a2", type=float, default=STEP_SIZE)
+    parser.add_argument("--alpha", "-a", type=float, default=STEP_SIZE)
     parser.add_argument("--rollout", "-rc", type=int, default=H)
-    parser.add_argument("--seed", "-d", type=int, default=SEED)
-    parser.add_argument("--temp", "-tp", type=float, default=TEMPERATURE)
     parser.add_argument("--decay", "-dc", type=float, default=DECAY)
-    parser.add_argument("--hidden", "-hs", type=int, default=ENV_HIDDEN_SIZE)
+    parser.add_argument("--seed", "-d", type=int, default=SEED)
     parser.add_argument("--save", "-s", action="store_true")
     parser.add_argument("--replayoff", "-r", action="store_true")
     parser.add_argument("--targetoff", "-t", action="store_true")
@@ -815,7 +534,7 @@ def main():
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
-    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha1, args.alpha2, args.rollout, args.seed, args.hidden, args.temp, args.decay)
+    dqn(env, args.replayoff, args.targetoff, file_name, args.save, load_file_path, args.alpha, args.rollout, args.seed, args.decay)
 
 
 if __name__ == '__main__':
