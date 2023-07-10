@@ -8,7 +8,7 @@ class CustomAcrobot(AcrobotEnv):
         super(CustomAcrobot, self).__init__()
 
     def set_state_from_observation(self, obs):
-        assert len(obs) == 6, "Observation should be of length 6: (cos(theta1), sin(theta1), cos(theta2), sin(theta2), theta1dot, theta2dot)"
+        # assert len(obs) == 6, "Observation should be of length 6: (cos(theta1), sin(theta1), cos(theta2), sin(theta2), theta1dot, theta2dot)"
         if isinstance(obs, torch.Tensor):
             obs = obs.detach().cpu().numpy()
         theta1 = np.arctan2(obs[1], obs[0])
