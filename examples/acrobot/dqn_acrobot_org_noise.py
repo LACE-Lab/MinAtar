@@ -397,7 +397,7 @@ def main():
     if args.loadfile:
         load_file_path = args.loadfile
 
-    env = gym.make("Acrobot-v1")
+    env = gym.make("Acrobot-v1", render_mode="human")
     env.reset(seed=args.seed)
 
     print('Cuda available?: ' + str(torch.cuda.is_available()))
