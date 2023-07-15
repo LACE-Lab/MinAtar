@@ -5,14 +5,11 @@ python3 ../learningcurve/learningcurve.py
 -i
 -s 30
 -e
--l "One-Step State Oracle MVE (H=3, a=0.001, dim=4)"
--n /research/erin/zoshao/results/2023_07_13_multiple_comparison_with_noise_target_noise_pure_performance_stats_2_a.0.001.dim.4.h.3.png
--g "Model-free" "One-Step Noise 0.1" "One-Step Noise 0.5" "One-Step Noise 1" "One-Step Noise 10" "Target Noise 0.1"  "Target Noise 0.5" "Perfect"
--a /research/erin/zoshao/results/2023_07_10_acrobot_perfect_model_noise_h1.a.0.003.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_one_state_oracle_noise_a.001.h3.dim.4.t.0.1.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_one_state_oracle_noise_a.001.h3.dim.4.t.0.5.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_one_state_oracle_noise_a.001.h3.dim.4.t.1.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_one_state_oracle_noise_a.001.h3.dim.4.t.10.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_full_target_oracle_noise_a.0.001.h3.dim.4.t.0.1.*.results
--a /research/erin/zoshao/results/2023_07_11_acrobot_full_target_oracle_noise_a.0.001.h3.dim.4.t.0.5.*.results
--a /research/erin/zoshao/results/2023_07_10_acrobot_perfect_model_noise_h3.a.0.003.*.results
+-l "R2R Selective MVE (H=3, dim=4)"
+-n /research/erin/zoshao/results/2023_07_14_r2r_comparison_h.3.dim.4.png
+-g "Model-free" "Perfect Model" "State Oracle" "Target Oracle" "r2r 0.1 0.1"
+-a /research/erin/zoshao/results/2023_06_13_acrobot_model_free_a.0.01.*.results
+-a /research/erin/zoshao/results/2023_06_21_acrobot_perfect_model_h3.dc.1_*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_one_state_oracle_h3.dim.4.t.0.5.*.results
+-a /research/erin/zoshao/results/2023_07_05_acrobot_full_target_oracle_h3.dim.4.t.0.1.*.results
+-a /research/erin/zoshao/results/2023_07_13_acrobot_r2r_h3.dim.4.a.0.1.t.0.1.*.results

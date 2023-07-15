@@ -49,7 +49,7 @@ H = 1 # rollout constant
 ENV_H = 5  # rollout constant for env training
 SEED = 42
 ENV_HIDDEN_SIZE = 128
-QUANTILES = [0.01, 0.99]  # The target quantiles
+QUANTILES = [0.1, 0.9]  # The target quantiles
 TEMPERATURE = 1
 DECAY = 1
 
@@ -700,8 +700,6 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         
         # Initialize the return for every episode (we should see this eventually increase)
         G = 0.0
-        predicted_uncertainties = []
-        true_errors = []
 
         # Initialize the environment and start state
         

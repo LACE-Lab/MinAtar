@@ -49,7 +49,7 @@ H = 1 # rollout constant
 ENV_H = 5  # rollout constant for env training
 SEED = 42
 ENV_HIDDEN_SIZE = 128
-QUANTILES = [0.01, 0.99]  # The target quantiles
+QUANTILES = [0.1, 0.9]  # The target quantiles
 TEMPERATURE = 1
 DECAY = 1
 
