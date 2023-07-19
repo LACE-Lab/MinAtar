@@ -419,7 +419,6 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
             # Calculate the weighted average using weights
             weighted_avg = (weights * discounted_rewards).sum()
             avg = torch.Tensor([weighted_avg.item()]).detach()
-
             target = torch.cat((target, avg)).detach()
 
         target.requires_grad = True
