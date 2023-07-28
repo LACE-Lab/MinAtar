@@ -372,6 +372,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     # One step state
                     real_next_state, _, _, _, _ = env.step(action.item())
                     real_next_state = torch.tensor(real_next_state)
+                    noise = (torch.randn(1) * 50).to(device)
+                    real_next_state = torch.cat((real_next_state, noise), 0)
                     
                     error = torch.abs(real_next_state - predicted_next_state_means).sum().item() ** 2
                     error_sample.append(error)
@@ -388,6 +390,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                         full_next_state, full_reward, full_terminated, full_truncated, _ = full_env.step(full_action.item())
                         full_done = full_terminated or full_truncated
                         full_next_state = torch.tensor(full_next_state)
+                        noise = (torch.randn(1) * 50).to(device)
+                        full_next_state = torch.cat((full_next_state, noise), 0)
                     
                     full_value_list[h] = 0 if full_done else target_net(full_next_state).max(0)[0].item()
                     full_reward_list[h] = full_reward
@@ -492,6 +496,8 @@ def trainWithRollout(sample, policy_net, target_net, optimizer, H, env_model, te
                     
                     env.set_state_from_observation(next_state)
                     next_state = torch.Tensor(next_state).to(device)
+                    noise = (torch.randn(1) * 50).to(device)
+                    next_state = torch.cat((next_state, noise), 0)
 
                     value_list[h] = 0 if done else target_net(next_state).max(0)[0].item()
                     reward_list[h] = reward
@@ -608,7 +614,7 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
     torch.set_num_threads(1)
     
     # Get channels and number of actions specific to each game
-    in_channels = env.observation_space.shape[0]
+    in_channels = env.observation_space.shape[0] + 1
     num_actions = env.action_space.n
 
     # Instantiate networks, optimizer, loss and buffer
@@ -682,6 +688,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
         # Initialize the environment and start state
         
         s_cont = torch.tensor(env.reset()[0], dtype=torch.float32).to(device)
+        noise = (torch.randn(1) * 50).to(device)
+        s_cont = torch.cat((s_cont, noise), 0)
         is_terminated = False
         rollout = []
         
@@ -703,6 +711,8 @@ def dqn(env, replay_off, target_off, output_file_name, store_intermediate_result
             is_terminated = terminated or truncated
 
             s_cont_prime = torch.tensor(s_cont_prime, dtype=torch.float32, device=device)
+            noise = (torch.randn(1) * 50).to(device)
+            s_cont_prime = torch.cat((s_cont_prime, noise), 0)
             
             # Add current transition to rollout buffer
             rollout.append(transition(s_cont, s_cont_prime, action, reward, is_terminated))
